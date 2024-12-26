@@ -14,6 +14,7 @@ def create_example_paths(directory: str):
     base_dir = os.path.abspath(directory)
     valid_file_path = os.path.join(base_dir, "example_valid.pb")
     invalid_file_path = os.path.join(base_dir, "example_invalid.pb")
+    invalid_file_path = os.path.join(base_dir, "example_invalid_2.pb")
     return valid_file_path, invalid_file_path
 
 

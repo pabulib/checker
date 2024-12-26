@@ -3,7 +3,8 @@ from helpers import parse_pb_lines, utilities as utils, fields as flds
 from collections import defaultdict
 import math
 import os
-from typing import List, Union, Dict
+import re
+from typing import List, Union
 import json
 
 
@@ -18,6 +19,8 @@ class Checker:
         self.results["metadata"]["invalid"] = 0
         self.results["summary"] = defaultdict(lambda: 0) # sum of errors across all files
         self.error_counters = defaultdict(lambda: 1)
+        self.counted_votes = defaultdict(int)
+        self.counted_scores = defaultdict(int)
 
     def add_error(self, type, details):
         current_count = self.error_counters[type]
@@ -109,9 +112,347 @@ class Checker:
                         details = f"project: {project_id} can be funded but it's not selected"
                         self.add_error(type, details)
 
+    def check_number_of_votes(self) -> None:
+        """Compare number of votes from META and votes and log if not equal."""
+
+        meta_votes = self.meta["num_votes"]
+        if int(meta_votes) != len(self.votes):
+            type = "different number of votes"
+            details = f"votes number in META: `{meta_votes}` vs counted from file (number of rows in VOTES section): `{str(len(self.votes))}`"
+            self.add_error(type, details)
+
+    def check_number_of_projects(self) -> None:
+        """Check if number of projects is the same as in META, log if not."""
+
+        meta_projects = self.meta["num_projects"]
+        if int(meta_projects) != len(self.projects):
+            type = "different number of projects"
+            details = f"projects number in meta: `{meta_projects}` vs counted from file (number of rows in PROJECTS section): `{str(len(self.projects))}`"
+            self.add_error(type, details)
+
+    def check_duplicated_votes(self):
+        for voter, vote_data in self.votes.items():
+            votes = vote_data["vote"].split(",")
+            if len(votes) > len(set(votes)):
+                type = "vote with duplicated projects"
+                details = f"duplicated projects in a vote: Voter ID: `{voter}`, vote: `{votes}`."
+                self.add_error(type, details)
+
+    def check_vote_length(self) -> None:
+        """Check if voter has more or less votes than allowed."""
+
+        max_length = (
+            self.meta.get("max_length")
+            or self.meta.get("max_length_unit")
+            or self.meta.get("max_length_district")
+        )
+
+        min_length = (
+            self.meta.get("min_length")
+            or self.meta.get("min_length_unit")
+            or self.meta.get("min_length_district")
+        )
+
+        if max_length or min_length:
+            for voter, vote_data in self.votes.items():
+                votes = vote_data["vote"].split(",")
+                voter_votes = len(votes)
+                if max_length:
+                    if voter_votes > int(max_length):
+                        type = "vote length exceeded"
+                        details = f"Voter ID: `{voter}`, max vote length: `{max_length}`, number of voter votes: `{voter_votes}`"
+                        self.add_error(type, details)
+                if min_length:
+                    if voter_votes < int(min_length):
+                        type = "vote length too short"
+                        details = f"Voter ID: `{voter}`, min vote length: `{min_length}`, number of voter votes: `{voter_votes}`"
+
+    def check_if_correct_votes_number(self) -> None:
+        """Check if number of votes in PROJECTS is the same as counted.
+
+        Count number of votes from VOTES section (given as dict) and check
+        if it's the same as given in PROJECTS.
+
+        Log if there is different number, if there is vote for project which
+        is not listed or if project has no votes.
+        """
+
+        self.counted_votes = utils.count_votes_per_project(self.votes)
+        for project_id, project_info in self.projects.items():
+            votes = project_info.get("votes", 0) or 0
+            if int(votes) == 0:
+                type = "project with no votes"
+                details = f"It's possible, that this project was not approved for voting! Project: {project_id}"
+                self.add_error(type, details)
+            counted_votes = self.counted_votes[project_id]
+            if not int(project_info.get("votes", 0) or 0) == int(counted_votes or 0):
+                type = f"different values in votes"
+                file_votes = project_info.get("votes", 0)
+                details = f"project: `{project_id}` file votes (in PROJECTS section): `{file_votes}` vs counted: {counted_votes}"
+                self.add_error(type, details)
+
+        for project_id, project_votes in self.counted_votes.items():
+            if not self.projects.get(project_id) or "votes" not in self.projects[project_id]:
+                type = f"different values in votes"
+                details = f"project: `{project_id}` file votes (in PROJECTS section): `0` vs counted: {project_votes}"
+                self.add_error(type, details)
+
+    def check_if_correct_scores_number(self) -> None:
+        """Check if score number given in PROJECTS is the same as counted.
+
+        Count scores per projects and check if it's equal to given number.
+        If not, log every project with inconsistent data.
+        """
+
+        self.counted_scores = utils.count_points_per_project(self.votes)
+        for project_id, project_info in self.projects.items():
+            counted_votes = self.counted_scores[project_id]
+
+            if not int(project_info.get("score", 0) or 0) == int(counted_votes or 0):
+                type = f"different values in scores"
+                file_score = project_info.get("score", 0),
+                details = f"project: `{project_id}` file scores (in PROJECTS section): `{file_score}` vs counted: {counted_votes}"
+                self.add_error(type, details)
+
+        for project_id, project_votes in self.counted_scores.items():
+            if not self.projects.get(project_id):
+                type = f"different values in scores"
+                details = f"project: `{project_id}` file scores (in PROJECTS section): `0` vs counted: {project_votes}"
+
+
+    def check_votes_and_scores(self):
+        if not any([self.votes_in_projects, self.scores_in_projects]):
+            type = "No votes or score counted in PROJECTS section"
+            details = "There should be at least one field"
+            self.add_error(type, details)
+        if self.votes_in_projects:
+            self.check_if_correct_votes_number()
+        if self.scores_in_projects:
+            self.check_if_correct_scores_number()
+
+    def verify_poznan_selected(self, budget, projects, results):
+        file_selected = dict()
+        rule_selected = dict()
+        get_rule_projects = True
+        for project_id, project_dict in projects.items():
+            project_cost = float(project_dict["cost"])
+            cost_printable = utils.make_cost_printable(project_cost)
+            row = [project_id, project_dict[results], cost_printable]
+            if int(project_dict["selected"]) in (1, 2):
+                # 2 for projects from 80% rule
+                file_selected[project_id] = row
+            if get_rule_projects:
+                if budget >= project_cost:
+                    rule_selected[project_id] = row
+                    budget -= project_cost
+                else:
+                    if budget >= project_cost * 0.8:
+                        # if there is no more budget but project costs
+                        # 80% of left budget it would be funded
+                        rule_selected[project_id] = row
+                    get_rule_projects = False
+        rule_selected_set = set(rule_selected.keys())
+        file_selected_set = set(file_selected.keys())
+        should_be_selected = rule_selected_set.difference(file_selected_set)
+        if should_be_selected:
+            type = "poznan rule not followed"
+            details = f"Projects not selected but should be: {should_be_selected}"
+            self.add_error(type, details)
+
+        shouldnt_be_selected = file_selected_set.difference(rule_selected_set)
+        if shouldnt_be_selected:
+            type = "poznan rule not followed"
+            details = f"Projects selected but should not: {shouldnt_be_selected}"
+            self.add_error(type, details)
+
+    def verify_greedy_selected(self, budget, projects, results):
+        selected_projects = dict()
+        greedy_winners = dict()
+        for project_id, project_dict in projects.items():
+            project_cost = float(project_dict["cost"])
+            cost_printable = utils.make_cost_printable(project_cost)
+            row = [project_id, project_dict[results], cost_printable]
+            if int(project_dict["selected"]) == 1:
+                selected_projects[project_id] = row
+            if budget >= project_cost:
+                greedy_winners[project_id] = row
+                budget -= project_cost
+        gw_set = set(greedy_winners.keys())
+        selected_set = set(selected_projects.keys())
+        should_be_selected = gw_set.difference(selected_set)
+        # if should_be_selected:
+        #     print(f"Projects not selected but should be: {should_be_selected}")
+
+        shouldnt_be_selected = selected_set.difference(gw_set)
+        # if shouldnt_be_selected:
+        #    print(f"Projects selected but should not: {shouldnt_be_selected}")
+
+        if should_be_selected or should_be_selected:
+            type = "greedy rule not followed"
+            details = f"Projects not selected but should be: {should_be_selected}, and selected but shouldn't: {shouldnt_be_selected}"
+            self.add_error(type, details)
+
+    def verify_selected(self):
+        selected_field = next(iter(self.projects.values())).get("selected")
+        if selected_field:
+            projects = utils.sort_projects_by_results(self.projects)
+            results = "votes"
+            if self.scores_in_projects:
+                results = "score"
+            budget = float(self.meta["budget"].replace(",", "."))
+            rule = self.meta["rule"]
+            if self.meta["unit"] == "Poznań":
+                self.verify_poznan_selected(budget, projects, results)
+            elif rule == "greedy":
+                self.verify_greedy_selected(budget, projects, results)
+            else:
+                # TODO add checker for other rules!
+                print(
+                    f"Rule different than `greedy`. Checker for `{rule}` not implemented yet."
+                )
+        else:
+            print("There is no selected field!")
+
+
+    def check_fields(self):
+        def validate_fields(data, fields_order, field_name):
+            # Check for missing obligatory fields
+            missing_fields = [
+                field
+                for field, props in fields_order.items()
+                if props.get("obligatory") and field not in data
+            ]
+            if missing_fields:
+                type = f"missing {field_name} obligatory field"
+                details = f"missing fields: {missing_fields}"
+                self.add_error(type, details)
+
+            # Check for not known fields
+            not_known_fields = [item for item in data if item not in fields_order]
+            if not_known_fields:
+                type = f"not known {field_name} fields"
+                details = f"{field_name} contains not known fields: {not_known_fields}."
+                self.add_error(type, details)
+
+            # Check if fields in correct order
+            fields_order_keys = list(
+                fields_order.keys()
+            )  # Get the ordered list of keys
+            data_order = [
+                item for item in data if item in fields_order_keys
+            ]  # Filter data keys
+
+            # Check if the relative order in data matches the expected order
+            expected_order_index = 0
+            for field in data_order:
+                # Find the index of the current field in the expected order
+                while (
+                    expected_order_index < len(fields_order_keys)
+                    and fields_order_keys[expected_order_index] != field
+                ):
+                    expected_order_index += 1
+
+                # If the field is not found in the expected order, report an error
+                if expected_order_index >= len(fields_order_keys):
+                    type = f"wrong {field_name} fields order"
+                    details = f"{field_name} wrong fields order: {data_order}."
+                    self.add_error(type, details)
+                    break
+
+            # Validate each field
+            for field, value in data.items():
+                if field not in fields_order:
+                    continue  # Skip fields not in the order list
+
+                field_rules = fields_order[field]
+                expected_type = field_rules["datatype"]
+                checker = field_rules.get("checker")
+                nullable = field_rules.get("nullable")
+
+                # Handle nullable fields
+                if not value:
+                    if not nullable:
+                        type = f"invalid {field_name} field value"
+                        details = f"{field_name} field '{field}' cannot be None."
+                        self.add_error(type, details)
+                    continue
+
+                # Attempt to cast to expected type
+                try:
+                    value = expected_type(value)
+                except (ValueError, TypeError):
+                    type = f"incorrect {field_name} field datatype"
+                    details = (
+                        f"{field_name} field '{field}' has incorrect datatype. "
+                        f"Expected {expected_type.__name__}, found {type(value).__name__}."
+                    )
+                    self.add_error(type, details)
+                    continue
+
+                # Apply custom checker if defined
+                if checker:
+                    check_result = checker(value) if callable(checker) else True
+                    if check_result is not True:  # Validation failed
+                        details = (
+                            check_result  # Use checker-provided message if available
+                            if isinstance(check_result, str)
+                            else f"{field_name} field '{field}' failed validation with value: {value}."
+                        )
+                        type = f"invalid {field_name} field value"
+                        self.add_error(type, details)
+
+        # Check meta fields
+        validate_fields(self.meta, flds.META_FIELDS_ORDER, "meta")
+
+        self.validate_date_range(self.meta)
+
+        # Check projects fields
+        first_project = next(iter(self.projects.values()), {})
+        validate_fields(
+            first_project,
+            flds.PROJECTS_FIELDS_ORDER,
+            "projects",
+        )
+
+        # Check votes fields
+        first_vote = next(iter(self.votes.values()), {})
+        # voter_id filed is checked during loading pb file. But maybe would be nice
+        # to load name of column and later on check if correct one
+        first_vote = {"voter_id": "placeholder", **first_vote}
+        validate_fields(first_vote, flds.VOTES_FIELDS_ORDER, "votes")
+
+    def validate_date_range(self, meta):
+
+        def parse_date(date_str):
+            # Convert date string to a comparable format.
+            # - YYYY -> "YYYY-01-01"
+            # - DD.MM.YYYY -> "YYYY-MM-DD"
+
+            if re.match(r"^\d{4}$", date_str):  # Year-only format
+                return f"{date_str}-01-01"
+            if re.match(r"^\d{2}\.\d{2}\.\d{4}$", date_str):  # Full date format
+                day, month, year = map(int, date_str.split("."))
+                return f"{year:04d}-{month:02d}-{day:02d}"
+
+        parsed_begin = parse_date(meta["date_begin"])
+        parsed_end = parse_date(meta["date_end"])
+
+        if parsed_begin and parsed_end:
+            if parsed_begin > parsed_end:
+                type = f"date range missmatch"
+                details = f"date end ({parsed_end}) earlier than start ({parsed_begin})!"
+                self.add_error(type, details)
+
     def run_checks(self):
         self.check_if_commas_in_floats()
         self.check_budgets()
+        self.check_number_of_votes()
+        self.check_number_of_projects()
+        self.check_vote_length()
+        #TODO check min/max points
+        self.check_votes_and_scores()
+        self.verify_selected()
+        self.check_fields()
 
     def process_files(self, files: List[Union[str, bytes]]):
         """
