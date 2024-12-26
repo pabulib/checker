@@ -14,8 +14,6 @@ example of usage:
 
 You can use `process_files` method which takes a list of path to files or their contents.
 
-1. from path
-
 ```
 from pabulib.checker import Checker
 
@@ -25,19 +23,21 @@ pb_file_path = (
 
 # Initialize the checker
 checker = Checker()
+```
 
+1. from path
+
+```
 # FROM FILES
 checker.process_files([pb_file_path])
 ```
 
 2. directly from provided content
 ```
+# FROM CONTENTS
+
 with open(pb_file_path, "r") as valid_file:
     valid_content = valid_file.read()
 
-# Initialize the checker
-checker = Checker()
-
-# FROM CONTENTS
 checker.process_files([valid_content])
 ```

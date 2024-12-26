@@ -1,6 +1,5 @@
 from dataclasses import dataclass, field
-from helpers import parse_pb_lines
-from helpers import Utils
+from helpers import parse_pb_lines, utilities as utils, fields as flds
 from collections import defaultdict
 import math
 import os
@@ -19,7 +18,6 @@ class Checker:
         self.results["metadata"]["invalid"] = 0
         self.results["summary"] = defaultdict(lambda: 0) # sum of errors across all files
         self.error_counters = defaultdict(lambda: 1)
-        self.utils = Utils()
 
     def add_error(self, type, details):
         current_count = self.error_counters[type]
@@ -97,7 +95,7 @@ class Checker:
         # IF NOT FULLY FUNDED FLAG, THEN CHECK IF budget not exceeded:
         if budget_available > all_projects_cost:
             type = "all projects funded"
-            details = f"budget: {self.utils.get_str_with_sep_from(budget_available)}, cost of all projects: {self.utils.get_str_with_sep_from(all_projects_cost)}"
+            details = f"budget: {utils.get_str_with_sep_from(budget_available)}, cost of all projects: {utils.get_str_with_sep_from(all_projects_cost)}"
             self.add_error(type, details)
         # check if unused budget
         budget_remaining = budget_available - budget_spent
