@@ -21,7 +21,7 @@ fully_funded;1
 currency;PLN
 PROJECTS
 project_id;cost;name;votes;score
-3;8000,0;3 Miejsce do wypoczynku przy Martwej Wiśle;120;433
+3;8000;3 Miejsce do wypoczynku przy Martwej Wiśle;120;433
 1;42000;1 Przeróbka-Dzielnica przyjazna kotom.;73;198
 2;5900;2 Rodzinna Gra Terenowa Przeróbka - zabawa na orientację;22;61
 VOTES

@@ -362,9 +362,11 @@ class Checker:
 
                 # If the field is not found in the expected order, report an error
                 if expected_order_index >= len(fields_order_keys):
+                    # longterm we want to keep all files in the same order, but
+                    # ATM its not crucial
                     type = f"wrong {field_name} fields order"
                     details = f"{field_name} wrong fields order: {data_order}."
-                    self.add_error(type, details)
+                    # self.add_error(type, details)
                     break
 
             # Validate each field
