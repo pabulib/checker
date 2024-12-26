@@ -4,6 +4,9 @@ Install locally as python package:
 pip install git+https://github.com/pabulib/checker.git
 ```
 
+### TODO
+1. pycountry should be installed
+
 import as
 
 ```

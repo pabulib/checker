@@ -1,7 +1,7 @@
 """NOTE: IF NEW CUSTOM FIELD, IT HAS TO BE ADDED HERE.
 Otherwise they will be skipped when saving."""
 
-import helpers.fields_validations as validate
+import pabulib_helpers.fields_validations as validate
 
 META_FIELDS_ORDER = {
     "description": {"datatype": str, "obligatory": True},
