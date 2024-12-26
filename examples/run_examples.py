@@ -1,5 +1,7 @@
-from pabulib.checker import Checker
 import os
+
+from pabulib.checker import Checker
+
 
 def create_example_paths(directory: str):
     """
@@ -14,18 +16,18 @@ def create_example_paths(directory: str):
     base_dir = os.path.abspath(directory)
     valid_file_path = os.path.join(base_dir, "example_valid.pb")
     invalid_file_path = os.path.join(base_dir, "example_invalid.pb")
-    invalid_file_path = os.path.join(base_dir, "example_invalid_2.pb")
-    return valid_file_path, invalid_file_path
+    invalid_file_path_2 = os.path.join(base_dir, "example_invalid_2.pb")
+    return invalid_file_path_2, invalid_file_path
 
 
 def main():
     # Create paths to example files
-    valid_file_path, invalid_file_path = create_example_paths("examples")
+    invalid_file_path_2, invalid_file_path = create_example_paths("examples")
 
     # Initialize the checker
     checker = Checker()
 
-    checker.process_files([invalid_file_path])
+    checker.process_files([invalid_file_path, invalid_file_path_2])
 
     # checker.process_files([valid_file_path, invalid_file_path])
 
@@ -33,9 +35,8 @@ def main():
     #     valid_content = valid_file.read()
     # with open(invalid_file_path, "r") as invalid_file:
     #     invalid_content = invalid_file.read()
-    
-    # checker.process_files([valid_content, invalid_content])
 
+    # checker.process_files([valid_content, invalid_content])
 
 
 if __name__ == "__main__":

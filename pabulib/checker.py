@@ -1,23 +1,28 @@
-from dataclasses import dataclass, field
-from helpers import parse_pb_lines, utilities as utils, fields as flds
-from collections import defaultdict
+import json
 import math
 import os
 import re
+from collections import defaultdict
+from dataclasses import dataclass
 from typing import List, Union
-import json
+
+from helpers import fields as flds
+from helpers import parse_pb_lines
+from helpers import utilities as utils
 
 
 @dataclass
 class Checker:
 
     def __post_init__(self):
-        self.results = dict() # results of all data
-        self.results["metadata"] = dict() # metadata, how many files was processed
+        self.results = dict()  # results of all data
+        self.results["metadata"] = dict()  # metadata, how many files was processed
         self.results["metadata"]["processed"] = 0
         self.results["metadata"]["valid"] = 0
         self.results["metadata"]["invalid"] = 0
-        self.results["summary"] = defaultdict(lambda: 0) # sum of errors across all files
+        self.results["summary"] = defaultdict(
+            lambda: 0
+        )  # sum of errors across all files
         self.error_counters = defaultdict(lambda: 1)
         self.counted_votes = defaultdict(int)
         self.counted_scores = defaultdict(int)
@@ -28,7 +33,7 @@ class Checker:
             self.file_results[type][current_count] = details
         except KeyError:
             self.file_results[type] = {current_count: details}
-            
+
         self.error_counters[type] += 1
         self.results["summary"][type] += 1
 
@@ -109,7 +114,9 @@ class Checker:
                     project_cost = int(project_data["cost"])
                     if project_cost < budget_remaining:
                         type = "unused budget"
-                        details = f"project: {project_id} can be funded but it's not selected"
+                        details = (
+                            f"project: {project_id} can be funded but it's not selected"
+                        )
                         self.add_error(type, details)
 
     def check_number_of_votes(self) -> None:
@@ -192,7 +199,10 @@ class Checker:
                 self.add_error(type, details)
 
         for project_id, project_votes in self.counted_votes.items():
-            if not self.projects.get(project_id) or "votes" not in self.projects[project_id]:
+            if (
+                not self.projects.get(project_id)
+                or "votes" not in self.projects[project_id]
+            ):
                 type = f"different values in votes"
                 details = f"project: `{project_id}` file votes (in PROJECTS section): `0` vs counted: {project_votes}"
                 self.add_error(type, details)
@@ -210,7 +220,7 @@ class Checker:
 
             if not int(project_info.get("score", 0) or 0) == int(counted_votes or 0):
                 type = f"different values in scores"
-                file_score = project_info.get("score", 0),
+                file_score = (project_info.get("score", 0),)
                 details = f"project: `{project_id}` file scores (in PROJECTS section): `{file_score}` vs counted: {counted_votes}"
                 self.add_error(type, details)
 
@@ -218,7 +228,6 @@ class Checker:
             if not self.projects.get(project_id):
                 type = f"different values in scores"
                 details = f"project: `{project_id}` file scores (in PROJECTS section): `0` vs counted: {project_votes}"
-
 
     def check_votes_and_scores(self):
         if not any([self.votes_in_projects, self.scores_in_projects]):
@@ -312,7 +321,6 @@ class Checker:
                 )
         else:
             print("There is no selected field!")
-
 
     def check_fields(self):
         def validate_fields(data, fields_order, field_name):
@@ -440,7 +448,9 @@ class Checker:
         if parsed_begin and parsed_end:
             if parsed_begin > parsed_end:
                 type = f"date range missmatch"
-                details = f"date end ({parsed_end}) earlier than start ({parsed_begin})!"
+                details = (
+                    f"date end ({parsed_end}) earlier than start ({parsed_begin})!"
+                )
                 self.add_error(type, details)
 
     def run_checks(self):
@@ -449,7 +459,7 @@ class Checker:
         self.check_number_of_votes()
         self.check_number_of_projects()
         self.check_vote_length()
-        #TODO check min/max points
+        # TODO check min/max points
         self.check_votes_and_scores()
         self.verify_selected()
         self.check_fields()
@@ -467,7 +477,13 @@ class Checker:
                     file_or_content = file.read()
             lines = file_or_content.split("\n")
 
-            self.meta, self.projects, self.votes, self.votes_in_projects, self.scores_in_projects = parse_pb_lines(lines)
+            (
+                self.meta,
+                self.projects,
+                self.votes,
+                self.votes_in_projects,
+                self.scores_in_projects,
+            ) = parse_pb_lines(lines)
 
             # do file checks
             self.check_empty_lines(lines)
@@ -478,7 +494,7 @@ class Checker:
             if not self.file_results:
                 self.results[identifier] = "File looks correct!"
                 self.results["metadata"]["valid"] += 1
-                
+
             else:
                 self.results[identifier] = self.file_results
                 self.results["metadata"]["invalid"] += 1
@@ -486,7 +502,4 @@ class Checker:
             self.results["metadata"]["processed"] += 1
 
             results = json.dumps(self.results, indent=4)
-            print(results)
-
-
-
+        print(results)
