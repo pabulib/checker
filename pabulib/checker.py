@@ -504,5 +504,5 @@ class Checker:
 
             self.results["metadata"]["processed"] += 1
 
-            results = json.dumps(self.results, indent=4)
+        results = json.dumps(self.results, indent=4)
         return results
