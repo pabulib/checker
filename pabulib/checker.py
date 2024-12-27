@@ -366,7 +366,7 @@ class Checker:
                     # ATM its not crucial
                     type = f"wrong {field_name} fields order"
                     details = f"{field_name} wrong fields order: {data_order}."
-                    # self.add_error(type, details)
+                    self.add_error(type, details)
                     break
 
             # Validate each field
