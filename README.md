@@ -45,10 +45,16 @@ with open(pb_file_path, "r") as valid_file:
 results = checker.process_files([valid_content])
 ```
 
-Get the results. Results is a python dict (JSON)
+Get the results. Results is a python dict
 ```
-print(results["summary"]) # for a summary, errors accross all files
-print(results["metadata"]) # processing metadata, how many files were processed etc
+import json
+
+# for a summary, errors accross all files
+print(json.dumps(results["summary"], indent=4))
+
+# processing metadata, how many files were processed etc
+print(json.dumps(results["metadata"], indent=4)) 
+
 
 print(results) # to get details.
 # for example

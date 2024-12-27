@@ -455,6 +455,15 @@ class Checker:
                 )
                 self.add_error(type, details)
 
+    # Convert the defaultdict (nested) to regular dictionaries
+    def convert_to_dict(self, obj):
+        if isinstance(obj, defaultdict):
+            return {k: self.convert_to_dict(v) for k, v in obj.items()}
+        elif isinstance(obj, dict):
+            return {k: self.convert_to_dict(v) for k, v in obj.items()}
+        else:
+            return obj
+
     def run_checks(self):
         self.check_if_commas_in_floats()
         self.check_budgets()
@@ -504,4 +513,5 @@ class Checker:
 
             self.results["metadata"]["processed"] += 1
 
-        return self.results
+        results_cleaned = self.convert_to_dict(self.results)
+        return results_cleaned
