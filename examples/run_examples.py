@@ -1,3 +1,4 @@
+import json
 import os
 
 from pabulib.checker import Checker
@@ -12,7 +13,12 @@ def main():
     # Initialize the checker
     checker = Checker()
 
-    checker.process_files([valid_file_path, invalid_file_path])
+    results = checker.process_files([valid_file_path])
+
+    # print(json.dumps(results["summary"], indent=4))
+
+    # print(json.dumps(results["metadata"], indent=4))
+    print(json.dumps(results, indent=4))
 
     # checker.process_files([valid_file_path, invalid_file_path])
 

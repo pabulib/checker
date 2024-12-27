@@ -323,7 +323,7 @@ class Checker:
             print("There is no selected field!")
 
     def check_fields(self):
-        def validate_fields(data, fields_order, field_name):
+        def validate_fields_and_order(data, fields_order, field_name):
             # Check for missing obligatory fields
             missing_fields = [
                 field
@@ -369,6 +369,8 @@ class Checker:
                     self.add_error(type, details)
                     break
 
+        def validate_fields_values(data, fields_order, field_name, identifier=""):
+
             # Validate each field
             for field, value in data.items():
                 if field not in fields_order:
@@ -383,7 +385,9 @@ class Checker:
                 if not value:
                     if not nullable:
                         type = f"invalid {field_name} field value"
-                        details = f"{field_name} field '{field}' cannot be None."
+                        details = (
+                            f"{identifier}{field_name} field '{field}' cannot be None."
+                        )
                         self.add_error(type, details)
                     continue
 
@@ -393,7 +397,7 @@ class Checker:
                 except (ValueError, TypeError):
                     type = f"incorrect {field_name} field datatype"
                     details = (
-                        f"{field_name} field '{field}' has incorrect datatype. "
+                        f"{identifier}{field_name} field '{field}' has incorrect datatype. "
                         f"Expected {expected_type.__name__}, found {type(value).__name__}."
                     )
                     self.add_error(type, details)
@@ -406,30 +410,42 @@ class Checker:
                         details = (
                             check_result  # Use checker-provided message if available
                             if isinstance(check_result, str)
-                            else f"{field_name} field '{field}' failed validation with value: {value}."
+                            else f"{identifier}{field_name} field '{field}' failed validation with value: {value}."
                         )
                         type = f"invalid {field_name} field value"
                         self.add_error(type, details)
 
         # Check meta fields
-        validate_fields(self.meta, flds.META_FIELDS_ORDER, "meta")
+        validate_fields_and_order(self.meta, flds.META_FIELDS_ORDER, "meta")
+        validate_fields_values(self.meta, flds.META_FIELDS_ORDER, "meta")
 
         self.validate_date_range(self.meta)
 
         # Check projects fields
+        # Check field order and missing fields for the first project only
         first_project = next(iter(self.projects.values()), {})
-        validate_fields(
-            first_project,
-            flds.PROJECTS_FIELDS_ORDER,
-            "projects",
-        )
+        validate_fields_and_order(first_project, flds.PROJECTS_FIELDS_ORDER, "projects")
+
+        # Validate all project entries
+        for project_id, project_data in self.projects.items():
+            identifier = f"Project ID `{project_id}`: "
+            validate_fields_values(
+                project_data, flds.PROJECTS_FIELDS_ORDER, "projects", identifier
+            )
 
         # Check votes fields
         first_vote = next(iter(self.votes.values()), {})
-        # voter_id filed is checked during loading pb file. But maybe would be nice
+        # TODO voter_id filed is checked during loading pb file. But maybe would be nice
         # to load name of column and later on check if correct one
         first_vote = {"voter_id": "placeholder", **first_vote}
-        validate_fields(first_vote, flds.VOTES_FIELDS_ORDER, "votes")
+        validate_fields_and_order(first_vote, flds.VOTES_FIELDS_ORDER, "votes")
+
+        # Validate all vote entries
+        for vote_id, vote_data in self.votes.items():
+            identifier = f"Voter ID `{vote_id}`: "
+            validate_fields_values(
+                vote_data, flds.VOTES_FIELDS_ORDER, "votes", identifier
+            )
 
     def validate_date_range(self, meta):
 
