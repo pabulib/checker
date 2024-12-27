@@ -298,7 +298,7 @@ class Checker:
 
         if should_be_selected or should_be_selected:
             type = "greedy rule not followed"
-            details = f"Projects not selected but should be: {should_be_selected}, and selected but shouldn't: {shouldnt_be_selected}"
+            details = f"Projects not selected but should be: {should_be_selected or ''}, and selected but shouldn't: {shouldnt_be_selected or ''}"
             self.add_error(type, details)
 
     def verify_selected(self):
@@ -505,4 +505,4 @@ class Checker:
             self.results["metadata"]["processed"] += 1
 
             results = json.dumps(self.results, indent=4)
-        print(results)
+        return results

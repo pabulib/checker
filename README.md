@@ -32,7 +32,7 @@ checker = Checker()
 
 ```
 # FROM FILES
-checker.process_files([pb_file_path])
+results = checker.process_files([pb_file_path])
 ```
 
 2. directly from provided content
@@ -42,5 +42,15 @@ checker.process_files([pb_file_path])
 with open(pb_file_path, "r") as valid_file:
     valid_content = valid_file.read()
 
-checker.process_files([valid_content])
+results = checker.process_files([valid_content])
+```
+
+Get the results. Results is a python dict (JSON)
+```
+print(results["summary"]) # for a summary, errors accross all files
+print(results["metadata"]) # processing metadata, how many files were processed etc
+
+print(results) # to get details.
+# for example
+print(results[<file_name>])
 ```
