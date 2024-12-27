@@ -1,4 +1,5 @@
 import unittest
+from copy import deepcopy
 
 from pabulib.checker import Checker
 
@@ -10,12 +11,7 @@ class TestCheckerIntegration(unittest.TestCase):
         Set up a Checker instance with initial values.
         """
         self.checker = Checker()
-
-    def test_integration_valid_file(self):
-        """
-        Test a complete valid file to ensure no errors are logged.
-        """
-        correct_content = """META
+        self.correct_content = """META
         key;value
         description;desc
         country;Poland
@@ -40,7 +36,12 @@ class TestCheckerIntegration(unittest.TestCase):
         """.replace(
             " ", ""
         )
-        results = self.checker.process_files([correct_content])
+
+    def test_integration_valid_file(self):
+        """
+        Test a complete valid file to ensure no errors are logged.
+        """
+        results = self.checker.process_files([self.correct_content])
         # Validate that the file has no errors
         self.assertEqual(
             results["metadata"]["valid"], 1, "Valid file incorrectly marked as invalid."
@@ -54,31 +55,15 @@ class TestCheckerIntegration(unittest.TestCase):
         Test a invalid file to ensure no errors are logged.
         (wrong end date, project with no cost, and sex X)
         """
-        incorrect_content = """META
-        key;value
-        description;desc
-        country;Poland
-        unit;TestUnit
-        instance;TestInstance
-        num_projects;2
-        num_votes;3
-        budget;500
-        vote_type;approval
-        rule;greedy
-        date_begin;01.01.2024
-        date_end;321213
-        PROJECTS
-        project_id;cost;votes;name;selected
-        1;0;2;Project1;1
-        2;300;2;Project2;0
-        VOTES
-        voter_id;vote;sex
-        voter1;1,2;M
-        voter2;1;F
-        voter3;2;X
-        """.replace(
-            " ", ""
+        incorrect_content = deepcopy(self.correct_content)
+        incorrect_content = incorrect_content.replace(
+            "date_end;31.01.2024", "date_end;321213"
         )
+        incorrect_content = incorrect_content.replace(
+            "1;500;2;Project1;1", "1;0;2;Project1;1"
+        )
+        incorrect_content = incorrect_content.replace("voter3;2;F", "voter3;2;X")
+
         results = self.checker.process_files([incorrect_content])
         # Validate that the file has errors
         self.assertEqual(

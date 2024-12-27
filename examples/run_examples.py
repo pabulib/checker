@@ -13,15 +13,17 @@ def main():
     # Initialize the checker
     checker = Checker()
 
+    # Process the valid file
     results = checker.process_files([valid_file_path])
-
-    # print(json.dumps(results["summary"], indent=4))
-
-    # print(json.dumps(results["metadata"], indent=4))
+    print("Results for valid file:")
     print(json.dumps(results, ensure_ascii=False, indent=4))
 
-    # checker.process_files([valid_file_path, invalid_file_path])
+    # Process the invalid file
+    results = checker.process_files([invalid_file_path])
+    print("Results for invalid file:")
+    print(json.dumps(results, ensure_ascii=False, indent=4))
 
+    # from contents
     # with open(valid_file_path, "r") as valid_file:
     #     valid_content = valid_file.read()
     # with open(invalid_file_path, "r") as invalid_file:

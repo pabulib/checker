@@ -2,6 +2,7 @@ import math
 import os
 import re
 from collections import defaultdict
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import List, Union
 
@@ -30,11 +31,12 @@ class Checker:
             "metadata": {"processed": 0, "valid": 0, "invalid": 0},
             "summary": defaultdict(lambda: 0),
         }
+        self.error_levels = {"errors": {}, "warnings": {}}
         self.error_counters = defaultdict(lambda: 1)
         self.counted_votes = defaultdict(int)
         self.counted_scores = defaultdict(int)
 
-    def add_error(self, error_type: str, details: str) -> None:
+    def add_error(self, error_type: str, details: str, level: str = "errors") -> None:
         """
         Record an error of the given error_type with details.
 
@@ -42,11 +44,13 @@ class Checker:
             error_type (str): The type/category of the error.
             details (str): Description of the error.
         """
+        if level not in self.error_levels.keys():
+            raise RuntimeError(f"Wrong level type!: {level}")
         current_count = self.error_counters[error_type]
         try:
-            self.file_results[error_type][current_count] = details
+            self.file_results[level][error_type][current_count] = details
         except KeyError:
-            self.file_results[error_type] = {current_count: details}
+            self.file_results[level][error_type] = {current_count: details}
 
         self.error_counters[error_type] += 1
         self.results["summary"][error_type] += 1
@@ -336,7 +340,7 @@ class Checker:
         if should_be_selected:
             error_type = "poznan rule not followed"
             details = f"Projects not selected but should be: {should_be_selected}"
-            self.add_error(error_type, details)
+            self.add_error(error_type, details, level="warnings")
 
         shouldnt_be_selected = file_selected_set.difference(rule_selected_set)
         if shouldnt_be_selected:
@@ -488,7 +492,7 @@ class Checker:
                     # ATM its not crucial
                     error_type = f"wrong {field_name} fields order"
                     details = f"{field_name} wrong fields order: {data_order}."
-                    self.add_error(error_type, details)
+                    self.add_error(error_type, details, level="warnings")
                     break
 
         def validate_fields_values(data, fields_order, field_name, identifier=""):
@@ -711,7 +715,7 @@ class Checker:
             results = self.process_files(files)
         """
         for identifier, file_or_content in enumerate(files, start=1):
-            self.file_results = {}
+            self.file_results = deepcopy(self.error_levels)
             if os.path.isfile(file_or_content):
                 # Input is a file path
                 identifier = os.path.splitext(os.path.basename(file_or_content))[0]
@@ -737,7 +741,9 @@ class Checker:
             # do section checks
             self.run_checks()
 
-            if not self.file_results:
+            if not any(
+                [self.file_results.get("errors"), self.file_results.get("warnings")]
+            ):
                 self.results[identifier]["results"] = "File looks correct!"
                 self.results["metadata"]["valid"] += 1
 
