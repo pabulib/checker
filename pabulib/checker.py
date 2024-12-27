@@ -475,6 +475,7 @@ class Checker:
             if os.path.isfile(file_or_content):
                 # Input is a file path
                 identifier = os.path.splitext(os.path.basename(file_or_content))[0]
+                print(f"Processing file: `{identifier}`...")
                 with open(file_or_content, "r", encoding="utf-8") as file:
                     file_or_content = file.read()
             lines = file_or_content.split("\n")
