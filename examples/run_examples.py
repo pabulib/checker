@@ -18,7 +18,7 @@ def main():
     # print(json.dumps(results["summary"], indent=4))
 
     # print(json.dumps(results["metadata"], indent=4))
-    print(json.dumps(results, indent=4))
+    print(json.dumps(results, ensure_ascii=False, indent=4))
 
     # checker.process_files([valid_file_path, invalid_file_path])
 

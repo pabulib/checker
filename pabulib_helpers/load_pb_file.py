@@ -1,6 +1,6 @@
 import csv
 from io import StringIO
-from typing import List, Tuple, Dict
+from typing import Dict, List, Tuple
 
 
 def parse_pb_lines(lines: List[str]) -> Tuple[Dict, Dict, Dict, bool, bool]:
