@@ -3,6 +3,7 @@ key;value
 description;District PB in Gdańsk, Przeróbka
 country;Poland
 unit;Gdańsk
+district;Przeróbka
 subunit;Przeróbka
 instance;2020
 num_projects;3
@@ -12,13 +13,12 @@ vote_type;cumulative
 rule;greedy
 date_begin;09.09.2019
 date_end;23.09.2019
-language;pl
-edition;7
-district;Przeróbka
 min_sum_points;1
 max_sum_points;5
-fully_funded;1
+edition;7
+language;pl
 currency;non_existing
+fully_funded;1
 PROJECTS
 project_id;cost;name;votes;score
 3;8000;3 Miejsce do wypoczynku przy Martwej Wiśle;120;433

@@ -469,31 +469,29 @@ class Checker:
                 self.add_error(error_type, details)
 
             # Check if fields in correct order
-            fields_order_keys = list(
-                fields_order.keys()
-            )  # Get the ordered list of keys
-            data_order = [
-                item for item in data if item in fields_order_keys
-            ]  # Filter data keys
 
-            # Check if the relative order in data matches the expected order
-            expected_order_index = 0
-            for field in data_order:
-                # Find the index of the current field in the expected order
-                while (
-                    expected_order_index < len(fields_order_keys)
-                    and fields_order_keys[expected_order_index] != field
-                ):
-                    expected_order_index += 1
+            # Extract the correct order of fields from fields_order
+            fields_order_keys = list(fields_order.keys())
 
-                # If the field is not found in the expected order, report an error
-                if expected_order_index >= len(fields_order_keys):
-                    # longterm we want to keep all files in the same order, but
-                    # ATM its not crucial
-                    error_type = f"wrong {field_name} fields order"
-                    details = f"{field_name} wrong fields order: {data_order}."
-                    self.add_error(error_type, details, level="warnings")
-                    break
+            # Get the current order of keys from the data dictionary
+            data_keys = list(data.keys())
+
+            # Generate the correct order based on fields_order_keys
+            correct_data_order = sorted(
+                data_keys,
+                key=lambda field: (
+                    fields_order_keys.index(field)
+                    if field in fields_order_keys
+                    else float("inf")
+                ),
+            )
+
+            # Check if the order is correct
+            if data_keys != correct_data_order:
+                # Report a warning with the correct order
+                error_type = f"wrong {field_name} fields order"
+                details = f"correct order should be: {correct_data_order}"
+                self.add_error(error_type, details, level="warnings")
 
         def validate_fields_values(data, fields_order, field_name, identifier=""):
             """
