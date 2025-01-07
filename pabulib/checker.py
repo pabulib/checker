@@ -134,7 +134,7 @@ class Checker:
             else:
                 self.add_error(
                     "fully_funded flag different than 1!",
-                    f"value: {self.meta["fully_funded"]}",
+                    f"value: {self.meta['fully_funded']}",
                 )
                 return
         # IF NOT FULLY FUNDED FLAG, THEN CHECK IF budget not exceeded:
