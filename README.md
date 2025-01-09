@@ -9,7 +9,6 @@ pip install git+https://github.com/pabulib/checker.git
 ### TODO
 1. pycountry should be installed
 2. tests should be run before deployment - CI/CD
-3. Should add correct order (to change it) not the actual one
 
 
 ## Overview
@@ -97,7 +96,7 @@ Details the outcomes for each processed file. Includes:
       },
       "warnings": {
         "wrong projects fields order": {
-          1: "projects wrong fields order: ['name', 'cost', 'selected']."
+          1: "projects wrong fields order: ['cost', 'name', 'selected']."
         }
       }
     }
