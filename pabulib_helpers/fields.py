@@ -95,7 +95,11 @@ VOTES_FIELDS_ORDER = {
     "vote": {"datatype": list, "checker": validate.if_list, "obligatory": True},
     "points": {"datatype": list, "checker": validate.if_list},
     "age": {"datatype": int, "nullable": True},
-    "sex": {"datatype": str, "checker": lambda x: x in ["M", "F"], "nullable": True},
+    "sex": {
+        "datatype": str,
+        "checker": lambda x: x in ["M", "F", "O"],
+        "nullable": True,
+    },
     "voting_method": {
         "datatype": str,
         "checker": lambda x: x in ["internet", "paper"],
