@@ -130,6 +130,11 @@ class Checker:
             #     print(project)
         if self.meta.get("fully_funded"):
             if int(self.meta["fully_funded"]) == 1:
+                if budget_available < all_projects_cost:
+                    self.add_error(
+                        "wrong fully_funded flag",
+                        f"budget: {utils.get_str_with_sep_from(budget_available)}, lower than cost of all projects: {utils.get_str_with_sep_from(all_projects_cost)}",
+                    )
                 return
             else:
                 self.add_error(
@@ -138,7 +143,7 @@ class Checker:
                 )
                 return
         # IF NOT FULLY FUNDED FLAG, THEN CHECK IF budget not exceeded:
-        if budget_available > all_projects_cost:
+        if budget_available >= all_projects_cost:
             self.add_error(
                 "all projects funded",
                 f"budget: {utils.get_str_with_sep_from(budget_available)}, cost of all projects: {utils.get_str_with_sep_from(all_projects_cost)}",
@@ -149,7 +154,7 @@ class Checker:
             selected_field = project_data.get("selected")
             if selected_field and int(selected_field) == 0:
                 project_cost = int(project_data["cost"])
-                if project_cost < budget_remaining:
+                if project_cost <= budget_remaining:
                     self.add_error(
                         "unused budget",
                         f"project: {project_id} can be funded but it's not selected",
