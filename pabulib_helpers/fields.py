@@ -94,7 +94,7 @@ VOTES_FIELDS_ORDER = {
     "voter_id": {"datatype": str, "obligatory": True},
     "vote": {"datatype": list, "checker": validate.if_list, "obligatory": True},
     "points": {"datatype": list, "checker": validate.if_list},
-    "age": {"datatype": str, "nullable": True},
+    "age": {"datatype": int, "nullable": True},
     "sex": {"datatype": str, "checker": lambda x: x in ["M", "F"], "nullable": True},
     "voting_method": {
         "datatype": str,
