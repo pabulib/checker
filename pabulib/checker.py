@@ -154,6 +154,12 @@ class Checker:
             selected_field = project_data.get("selected")
             if selected_field and int(selected_field) == 0:
                 project_cost = int(project_data["cost"])
+                # Skip "unused budget" error if project is below threshold
+                if self.threshold > 0:
+                    project_score = float(project_data.get(self.results_field, 0))
+                    if project_score <= self.threshold:
+                        continue  # Not eligible → skip
+
                 if project_cost <= budget_remaining:
                     self.add_error(
                         "unused budget",
@@ -430,17 +436,17 @@ class Checker:
         selected_field = next(iter(self.projects.values())).get("selected")
         if selected_field:
             projects = utils.sort_projects_by_results(self.projects)
-            results = "votes"
+            self.results_field = "votes"
             if self.scores_in_projects:
-                results = "score"
+                self.results_field = "score"
             budget = float(self.meta["budget"].replace(",", "."))
             rule = self.meta["rule"]
             if self.meta["unit"] == "Poznań":
-                self.verify_poznan_selected(budget, projects, results)
+                self.verify_poznan_selected(budget, projects, self.results_field)
             elif rule == "greedy":
-                # Minimum number of votes / score for project to be eligible for implementation
-                threshold = int(self.meta.get("min_project_score_threshold", 0))
-                self.verify_greedy_selected(budget, projects, results, threshold)
+                self.verify_greedy_selected(
+                    budget, projects, self.results_field, self.threshold
+                )
             else:
                 # TODO add checker for other rules!
                 print(
@@ -753,6 +759,9 @@ class Checker:
                 self.votes_in_projects,
                 self.scores_in_projects,
             ) = parse_pb_lines(lines)
+
+            # Minimum number of votes / score for project to be eligible for implementation
+            self.threshold = int(self.meta.get("min_project_score_threshold", 0))
 
             self.results[identifier] = dict()
             self.results[identifier]["webpage_name"] = self.create_webpage_name()
