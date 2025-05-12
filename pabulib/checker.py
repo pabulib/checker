@@ -767,7 +767,7 @@ class Checker:
             self.check_empty_lines(lines)
 
             # results field, votes or score (points)
-            self.results_field = "votes" if self.votes_in_projects else "score"
+            self.results_field = "score" if self.scores_in_projects else "votes"
 
             # do section checks
             self.run_checks()
