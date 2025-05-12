@@ -353,33 +353,45 @@ class Checker:
             details = f"Projects selected but should not: {shouldnt_be_selected}"
             self.add_error(error_type, details)
 
-    def verify_greedy_selected(self, budget, projects, results) -> None:
+    def verify_greedy_selected(self, budget, projects, results, threshold=0) -> None:
         """
-        Validate project selection according to greedy rules.
+        Validate project selection according to greedy rules, with optional minimum score threshold.
 
-        Ensures that projects are selected in descending order of priority (e.g., votes or scores)
-        until the budget is exhausted.
+        Ensures that projects are selected in descending order of priority (e.g., votes or scores),
+        above a specified threshold, until the budget is exhausted.
 
         Args:
             budget (float): Available budget for funding projects.
             projects (dict): Dictionary of projects with details such as cost and selection status.
-            results (str): Field to use for result comparison (e.g., votes or scores).
+            results (str): Field to use for result comparison (e.g., votes or score).
+            threshold (int): Minimum votes/score a project must have to be considered (default is 0).
 
         Logs discrepancies where:
         - Projects that should be selected are not.
         - Projects that should not be selected are selected.
+        - Projects below the threshold are selected.
         """
         selected_projects = dict()
         greedy_winners = dict()
+        selected_below_threshold = set()
+
         for project_id, project_dict in projects.items():
+            project_score = float(project_dict[results])
             project_cost = float(project_dict["cost"])
+
             cost_printable = utils.make_cost_printable(project_cost)
             row = [project_id, project_dict[results], cost_printable]
+
             if int(project_dict["selected"]) == 1:
                 selected_projects[project_id] = row
-            if budget >= project_cost:
+                if project_score < threshold:
+                    selected_below_threshold.add(project_id)
+
+            # Only consider projects above threshold for greedy selection
+            if project_score >= threshold and budget >= project_cost:
                 greedy_winners[project_id] = row
                 budget -= project_cost
+
         gw_set = set(greedy_winners.keys())
         selected_set = set(selected_projects.keys())
         should_be_selected = gw_set.difference(selected_set)
@@ -393,6 +405,11 @@ class Checker:
         if should_be_selected or should_be_selected:
             error_type = "greedy rule not followed"
             details = f"Projects not selected but should be: {should_be_selected or ''}, and selected but shouldn't: {shouldnt_be_selected or ''}"
+            self.add_error(error_type, details)
+
+        if selected_below_threshold:
+            error_type = "threshold violation"
+            details = f"Projects selected below threshold ({threshold}): {selected_below_threshold}"
             self.add_error(error_type, details)
 
     def verify_selected(self) -> None:
@@ -421,7 +438,9 @@ class Checker:
             if self.meta["unit"] == "Poznań":
                 self.verify_poznan_selected(budget, projects, results)
             elif rule == "greedy":
-                self.verify_greedy_selected(budget, projects, results)
+                # Minimum number of votes / score for project to be eligible for implementation
+                threshold = int(self.meta.get("min_project_score_threshold", 0))
+                self.verify_greedy_selected(budget, projects, results, threshold)
             else:
                 # TODO add checker for other rules!
                 print(

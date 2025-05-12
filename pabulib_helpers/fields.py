@@ -44,6 +44,7 @@ META_FIELDS_ORDER = {
     "max_sum_points": {"datatype": int},
     "min_project_cost": {"datatype": int},
     "max_project_cost": {"datatype": int},
+    "min_project_score_threshold": {"datatype": int},
     "neighborhoods": {"datatype": str},
     "subdistricts": {"datatype": str},
     "categories": {"datatype": str},
