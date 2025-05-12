@@ -8,7 +8,7 @@ pip install git+https://github.com/pabulib/checker.git
 
 ### TODO
 1. pycountry should be installed
-2. tests should be run before deployment - CI/CD
+2. tests should be run before deployment - CI/CD (ATM manually via command `pytest tests`)
 
 
 ## Overview
