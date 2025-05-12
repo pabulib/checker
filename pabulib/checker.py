@@ -436,9 +436,6 @@ class Checker:
         selected_field = next(iter(self.projects.values())).get("selected")
         if selected_field:
             projects = utils.sort_projects_by_results(self.projects)
-            self.results_field = "votes"
-            if self.scores_in_projects:
-                self.results_field = "score"
             budget = float(self.meta["budget"].replace(",", "."))
             rule = self.meta["rule"]
             if self.meta["unit"] == "Poznań":
@@ -768,6 +765,9 @@ class Checker:
 
             # do file checks
             self.check_empty_lines(lines)
+
+            # results field, votes or score (points)
+            self.results_field = "votes" if self.votes_in_projects else "score"
 
             # do section checks
             self.run_checks()
