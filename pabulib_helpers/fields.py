@@ -86,8 +86,8 @@ PROJECTS_FIELDS_ORDER = {
     "description": {"datatype": str},
     "proposer": {"datatype": str},
     "public_id": {"datatype": str},
-    "longitude": {"datatype": float, "nullable": True},
     "latitude": {"datatype": float, "nullable": True},
+    "longitude": {"datatype": float, "nullable": True},
 }
 
 
