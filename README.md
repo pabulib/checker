@@ -149,6 +149,13 @@ Non-critical issues that should be reviewed:
     pip install git+https://github.com/pabulib/checker.git
     ```
 
+### To reinstall it (to get newest pushed code)
+```bash
+pip uninstall -y pabulib 
+pip install git+https://github.com/pabulib/checker.git
+```
+
+
 ### Usage
 1. **Import the `Checker` class:**
     ```python
