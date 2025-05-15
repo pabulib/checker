@@ -1,5 +1,32 @@
-"""NOTE: IF NEW CUSTOM FIELD, IT HAS TO BE ADDED HERE.
-Otherwise they will be skipped when saving."""
+"""
+IMPORTANT: If a new custom field is added, it MUST be included in the relevant *_FIELDS_ORDER dictionary.
+Otherwise, an error will be raised when processing — especially when saving the `meta` dictionary.
+
+Example usage in Pabulib:
+    def sort_meta_fields(self):
+        unknown_keys = [key for key in self.meta if key not in flds.META_FIELDS_ORDER]
+        if unknown_keys:
+            raise ValueError(f"Unknown meta field(s): {unknown_keys}. "
+                             f"Did you forget to add them to META_FIELDS_ORDER?")
+        self.meta = {
+            key: self.meta[key] for key in flds.META_FIELDS_ORDER if key in self.meta
+        }
+
+This field configuration is used in the Pabulib data pipeline to:
+- Define the order and presence of metadata, project, and vote fields
+- Enforce type constraints and custom validations
+- Prevent unregistered fields from being silently included
+
+Each field entry may define:
+  - `datatype`: expected Python type
+  - `obligatory`: whether the field is required
+  - `nullable`: whether None is allowed
+  - `checker`: custom validation function
+
+Validation logic is imported from `pabulib_helpers.fields_validations`.
+
+Keep this schema updated to avoid data loss or errors during processing.
+"""
 
 import pabulib_helpers.fields_validations as validate
 
