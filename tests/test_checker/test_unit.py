@@ -569,6 +569,72 @@ class TestCheckerUnit(unittest.TestCase):
             "meta field 'fully_funded' failed validation with value: 2.",
         )
 
+    def test_create_webpage_name_with_polish_chars(self):
+        """
+        Test that `create_webpage_name` handles Polish characters correctly.
+        """
+        self.checker.meta = {
+            "country": "Polska",
+            "unit": "Wydział Śródmieście",
+            "instance": "Białołęka",
+        }
+
+        name = self.checker.create_webpage_name()
+        expected = "Polska_Wydział Śródmieście_Białołęka"
+
+        self.assertEqual(name, expected)
+        print("Generated webpage name:", name)
+
+    def test_no_max_length_used_warning(self):
+        """
+        Should raise a warning when no vote uses the full max_length.
+        """
+        self.checker.file_results = deepcopy(self.checker.error_levels)
+
+        self.checker.meta = {
+            "country": "Polska",
+            "unit": "Warszawa",
+            "instance": "2020",
+            "max_length": "3",  # Must be string if stored that way
+        }
+
+        self.checker.votes = {
+            1: {"voter_id": 1, "vote": "1"},
+            2: {"voter_id": 2, "vote": "1,2"},
+        }
+
+        self.checker.check_vote_length()
+
+        warning = self.checker.file_results["warnings"].get("no_max_length_used")
+        self.assertIsNotNone(warning, "Expected warning not triggered.")
+        self.assertIn("No voter used the full max vote length of `3`", warning[1])
+
+    def test_max_length_used_no_warning(self):
+        """
+        Should NOT raise a warning when at least one vote uses the full max_length.
+        """
+        self.checker.file_results = deepcopy(self.checker.error_levels)
+
+        self.checker.meta = {
+            "country": "Polska",
+            "unit": "Warszawa",
+            "instance": "2020",
+            "max_length": "3",
+        }
+
+        self.checker.votes = {
+            1: {"voter_id": 1, "vote": "1"},
+            2: {"voter_id": 2, "vote": "1,2"},
+            3: {"voter_id": 3, "vote": "1,2,3"},  # matches max_length
+        }
+
+        self.checker.check_vote_length()
+
+        warning = self.checker.file_results["warnings"].get("no_max_length_used")
+        self.assertIsNone(
+            warning, "Unexpected warning triggered when max length was used."
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
