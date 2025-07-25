@@ -224,6 +224,7 @@ class Checker:
         )
 
         if max_length or min_length:
+            has_vote_with_max_length = False
             for voter, vote_data in self.votes.items():
                 votes = vote_data["vote"].split(",")
                 voter_votes = len(votes)
@@ -232,11 +233,19 @@ class Checker:
                         error_type = "vote length exceeded"
                         details = f"Voter ID: `{voter}`, max vote length: `{max_length}`, number of voter votes: `{voter_votes}`"
                         self.add_error(error_type, details)
+                    elif voter_votes == int(max_length):
+                        has_vote_with_max_length = True
                 if min_length:
                     if voter_votes < int(min_length):
                         error_type = "vote length too short"
                         details = f"Voter ID: `{voter}`, min vote length: `{min_length}`, number of voter votes: `{voter_votes}`"
                         self.add_error(error_type, details)
+
+            # Suspicious if no one used the full max length
+            if max_length and not has_vote_with_max_length:
+                error_type = "no_max_length_used"
+                details = f"No voter used the full max vote length of `{max_length}`"
+                self.add_error(error_type, details, level="warnings")
 
     def check_if_correct_votes_number(self) -> None:
         """
