@@ -4,7 +4,7 @@ A Python library for validating files in the .pb (Pabulib) format, ensuring comp
 
 ## Installation
 
-### From PyPI (when published)
+### From PyPI
 ```bash
 pip install pabulib-checker
 ```
