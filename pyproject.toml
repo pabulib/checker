@@ -1,24 +1,29 @@
 [build-system]
-requires = ["setuptools>=42", "wheel", "pycountry"]
+requires = ["setuptools>=42", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pabulib"
+name = "pabulib-checker"
 version = "0.1.0"
 description = "A Python library for validating files in the PB (Pabulib) format, ensuring compliance with the standards described at pabulib.org/format."
 authors = [
     { name = "Ignacy Janiszewski", email = "ignacy.janiszewsk@uj.edu.pl" }
 ]
-license = { text = "MIT" }
-dependencies = []
+license = "MIT"
+dependencies = ["pycountry>=24.6.1"]
 requires-python = ">=3.7"
 readme = "README.md"
-keywords = ["checker", "file validation", "python"]
+keywords = ["checker", "file validation", "python", "pabulib"]
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
 
+[project.urls]
+Homepage = "https://github.com/pabulib/checker"
+Repository = "https://github.com/pabulib/checker"
+Issues = "https://github.com/pabulib/checker/issues"
+
 [tool.setuptools.packages.find]
 where = ["."]
+include = ["pabulib*", "pabulib_helpers*"]

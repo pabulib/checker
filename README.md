@@ -2,13 +2,36 @@
 
 A Python library for validating files in the .pb (Pabulib) format, ensuring compliance with the standards described at pabulib.org/format.
 
+## Installation
+
+### From PyPI (when published)
+```bash
+pip install pabulib-checker
 ```
+
+### From GitHub
+```bash
 pip install git+https://github.com/pabulib/checker.git
 ```
 
-### TODO
-1. pycountry should be installed
-2. tests should be run before deployment - CI/CD (ATM manually via command `pytest tests`)
+### From Local Source
+```bash
+# Clone the repository
+git clone https://github.com/pabulib/checker.git
+cd checker
+
+# Install in editable mode
+pip install -e .
+
+# Or build and install the wheel
+python -m build
+pip install dist/pabulib_checker-0.1.0-py3-none-any.whl
+```
+
+## Dependencies
+
+This package automatically installs the following dependencies:
+- `pycountry>=24.6.1` - For country code validation
 
 
 ## Overview
