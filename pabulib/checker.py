@@ -214,14 +214,20 @@ class Checker:
 
         # Try to fund projects in order of priority, checking remaining budget
         current_remaining = budget_remaining
+        fundable_projects = []
         for project_id, project_cost, project_score in unselected_projects:
             if project_cost <= current_remaining:
-                self.add_error(
-                    "unused budget",
-                    f"project: {project_id} can be funded but it's not selected",
-                )
+                fundable_projects.append(project_id)
                 # Subtract cost from remaining budget for next iteration
                 current_remaining -= project_cost
+
+        # Add a single error message for all fundable projects
+        if fundable_projects:
+            projects_str = ", ".join(map(str, fundable_projects))
+            self.add_error(
+                "unused budget",
+                f"projects {projects_str} can be funded but are not selected",
+            )
 
     def check_number_of_votes(self) -> None:
         """

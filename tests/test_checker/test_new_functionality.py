@@ -156,18 +156,13 @@ class TestNewFunctionality(unittest.TestCase):
 
         # Should only mention project 2, not project 3
         unused_errors = errors["unused budget"]
-        project_2_reported = any(
-            "project: 2" in str(detail) for detail in unused_errors.values()
-        )
-        project_3_reported = any(
-            "project: 3" in str(detail) for detail in unused_errors.values()
-        )
+        error_message = str(list(unused_errors.values())[0])
 
-        self.assertTrue(
-            project_2_reported, "Project 2 should be reported as unused budget"
+        self.assertIn(
+            "2", error_message, "Project 2 should be reported as unused budget"
         )
-        self.assertFalse(
-            project_3_reported, "Project 3 should NOT be reported (cannot be funded)"
+        self.assertNotIn(
+            "3", error_message, "Project 3 should NOT be reported (cannot be funded)"
         )
 
     def test_unused_budget_greedy_simulation_with_threshold(self):
@@ -221,18 +216,13 @@ class TestNewFunctionality(unittest.TestCase):
         errors = self.checker.file_results["errors"]
         if "unused budget" in errors:
             unused_errors = errors["unused budget"]
-            project_2_reported = any(
-                "project: 2" in str(detail) for detail in unused_errors.values()
-            )
-            project_3_reported = any(
-                "project: 3" in str(detail) for detail in unused_errors.values()
-            )
+            error_message = str(list(unused_errors.values())[0])
 
-            self.assertTrue(
-                project_2_reported, "Project 2 should be reported (above threshold)"
+            self.assertIn(
+                "2", error_message, "Project 2 should be reported (above threshold)"
             )
-            self.assertFalse(
-                project_3_reported, "Project 3 should NOT be reported (below threshold)"
+            self.assertNotIn(
+                "3", error_message, "Project 3 should NOT be reported (below threshold)"
             )
 
     def test_unused_budget_greedy_simulation_priority_order(self):
@@ -289,18 +279,14 @@ class TestNewFunctionality(unittest.TestCase):
         self.assertIn("unused budget", errors)
 
         unused_errors = errors["unused budget"]
-        project_2_reported = any(
-            "project: 2" in str(detail) for detail in unused_errors.values()
-        )
-        project_3_reported = any(
-            "project: 3" in str(detail) for detail in unused_errors.values()
-        )
+        error_message = str(list(unused_errors.values())[0])
 
-        self.assertTrue(
-            project_2_reported, "Project 2 should be reported (higher priority)"
+        self.assertIn(
+            "2", error_message, "Project 2 should be reported (higher priority)"
         )
-        self.assertFalse(
-            project_3_reported,
+        self.assertNotIn(
+            "3",
+            error_message,
             "Project 3 should NOT be reported (would exceed budget after project 2)",
         )
 
@@ -547,30 +533,20 @@ v3;2,4
 
         # Check which projects are reported
         unused_errors = errors["unused budget"]
-        reported_projects = []
-        for error_detail in unused_errors.values():
-            error_str = str(error_detail)
-            if "project: 2" in error_str:
-                reported_projects.append(2)
-            elif "project: 3" in error_str:
-                reported_projects.append(3)
-            elif "project: 4" in error_str:
-                reported_projects.append(4)
+        error_message = str(list(unused_errors.values())[0])
 
         # Should report projects 2 and 4 (can be funded in greedy order)
         # Should NOT report project 3 (would exceed budget after funding projects 2 and 4)
         self.assertIn(
-            2, reported_projects, "Project 2 should be reported (can be funded)"
+            "2", error_message, "Project 2 should be reported (can be funded)"
         )
         self.assertIn(
-            4,
-            reported_projects,
+            "4",
+            error_message,
             "Project 4 should be reported (can be funded after project 2)",
         )
         self.assertNotIn(
-            3,
-            reported_projects,
-            "Project 3 should NOT be reported (would exceed budget)",
+            "3", error_message, "Project 3 should NOT be reported (would exceed budget)"
         )
 
 

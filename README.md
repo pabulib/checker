@@ -25,7 +25,7 @@ pip install -e .
 
 # Or build and install the wheel
 python -m build
-pip install dist/pabulib_checker-0.1.0-py3-none-any.whl
+pip install dist/pabulib_checker-0.2.0-py3-none-any.whl
 ```
 
 ## Dependencies
@@ -240,6 +240,112 @@ To add new validation rules or checks:
 
 ---
 
+## Development
+
+### Setting up for Development
+```bash
+# Clone the repository
+git clone https://github.com/pabulib/checker.git
+cd checker
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install development dependencies
+pip install -r requirements-dev.txt
+pip install -e .
+```
+
+### Running Tests
+```bash
+pytest tests/ -v
+```
+
+### Deploying to PyPI
+
+For automated deployment, you can use the included `deploy.py` script with API tokens:
+
+1. **Get your PyPI API token:**
+   - Go to https://pypi.org/manage/account/token/
+   - Create a new API token with appropriate scope
+   - Copy the token (starts with `pypi-`)
+
+2. **Set up environment variables:**
+   ```bash
+   # Option 1: Create a .env file (recommended)
+   cp .env.example .env
+   # Edit .env and add your tokens:
+   # PYPI_API_TOKEN=pypi-your-token-here
+   # TEST_PYPI_API_TOKEN=pypi-your-test-token-here
+
+   # Option 2: Export environment variables
+   export PYPI_API_TOKEN=pypi-your-token-here
+   export TEST_PYPI_API_TOKEN=pypi-your-test-token-here
+   ```
+
+3. **Deploy to TestPyPI (recommended first):**
+   ```bash
+   python deploy.py --test
+   ```
+
+4. **Deploy to PyPI:**
+   ```bash
+   python deploy.py
+   ```
+
+**Deployment script options:**
+- `--test`: Deploy to TestPyPI instead of PyPI
+- `--skip-build`: Skip building and use existing dist/ files
+
+### Manual Deployment (Alternative)
+If you prefer manual deployment:
+
+```bash
+# Install build tools
+pip install build twine
+
+# Clean and build
+rm -rf dist/ build/ *.egg-info
+python -m build
+
+# Check package
+twine check dist/*
+
+# Upload to TestPyPI
+twine upload --repository testpypi dist/*
+
+# Upload to PyPI
+twine upload dist/*
+```
+
+---
+
 ## Additional Information
 For detailed examples or advanced usage, refer to the comments in the source code.
+
+---
+
+## Changelog
+
+### Version 0.2.0 (2025-10-30)
+**Major Improvements:**
+
+- **🔧 Consolidated Unused Budget Error Messages:** Instead of showing separate error messages for each project that could be funded with unused budget, now shows a single consolidated message listing all fundable projects (e.g., "projects 565, 480, 487 can be funded but are not selected")
+
+- **📋 Enhanced Validation Error Messages:** All validation errors now include the list of valid options when validation fails:
+  - `invalid rule 'quota greedy'. Valid options are: greedy, unknown, equalshares, equalshares/add1`
+  - `invalid vote_type 'invalid_type'. Valid options are: ordinal, approval, cumulative, choose-1`
+  - `invalid selected value '5'. Valid options are: 0, 1, 2, 3`
+  - `invalid sex value 'Invalid'. Valid options are: M, F, O`
+  - `invalid voting_method 'invalid_method'. Valid options are: internet, paper`
+  - `invalid fully_funded value '2'. Valid options are: 1`
+
+**Benefits:**
+- Reduced error message noise and improved readability
+- Users can immediately see what values are valid for each field
+- Better user experience when fixing validation issues
+
+### Version 0.1.1
+- Initial release with basic validation functionality
 

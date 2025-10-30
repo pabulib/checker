@@ -1,0 +1,8 @@
+# Development dependencies for building and deploying
+build>=1.0.0
+twine>=4.0.0
+python-dotenv>=1.0.0
+
+# Testing dependencies
+pytest>=7.0.0
+pytest-cov>=4.0.0

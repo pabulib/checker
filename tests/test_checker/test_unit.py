@@ -631,7 +631,7 @@ class TestCheckerUnit(unittest.TestCase):
         )
         self.assertEqual(
             error.get("invalid meta field value")[1],
-            "meta field 'fully_funded' failed validation with value: 2.",
+            "invalid fully_funded value '2'. Valid options are: 1",
         )
 
     def test_create_webpage_name_with_polish_chars(self):

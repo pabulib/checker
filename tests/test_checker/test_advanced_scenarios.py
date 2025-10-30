@@ -106,30 +106,23 @@ class TestAdvancedScenarios(unittest.TestCase):
         errors = self.checker.file_results["errors"]
         if "unused budget" in errors:
             unused_errors = errors["unused budget"]
-
-            # Check which projects are reported
-            reported_projects = []
-            for error_detail in unused_errors.values():
-                error_str = str(error_detail)
-                for pid in [2, 3, 4, 5, 6]:
-                    if f"project: {pid}" in error_str:
-                        reported_projects.append(pid)
+            error_message = str(list(unused_errors.values())[0])
 
             # Should report projects 6 and 4 (can be funded in greedy order)
             # Should not report project 2 (would exceed budget after project 6)
             self.assertIn(
-                6,
-                reported_projects,
+                "6",
+                error_message,
                 "Project 6 should be reported (highest votes, can be funded)",
             )
             self.assertIn(
-                4,
-                reported_projects,
+                "4",
+                error_message,
                 "Project 4 should be reported (can be funded after project 6)",
             )
             self.assertNotIn(
-                2,
-                reported_projects,
+                "2",
+                error_message,
                 "Project 2 should NOT be reported (would exceed budget after project 6)",
             )
 
@@ -267,16 +260,13 @@ class TestAdvancedScenarios(unittest.TestCase):
         errors = self.checker.file_results["errors"]
         if "unused budget" in errors:
             unused_errors = errors["unused budget"]
+            error_message = str(list(unused_errors.values())[0])
 
-            # Check which projects are reported
+            # Check if any above-threshold projects are mentioned
             above_threshold_reported = any(
-                f"project: {pid}" in str(detail)
-                for detail in unused_errors.values()
-                for pid in [2, 3, 5]
+                str(pid) in error_message for pid in [2, 3, 5]
             )
-            below_threshold_reported = any(
-                "project: 4" in str(detail) for detail in unused_errors.values()
-            )
+            below_threshold_reported = "4" in error_message
 
             self.assertTrue(
                 above_threshold_reported,
@@ -417,19 +407,16 @@ v4;1
             # Should detect unused budget for project 2 only (project 4 below threshold)
             if "unused budget" in errors:
                 unused_errors = errors["unused budget"]
-                project_2_reported = any(
-                    "project: 2" in str(detail) for detail in unused_errors.values()
-                )
-                project_4_reported = any(
-                    "project: 4" in str(detail) for detail in unused_errors.values()
-                )
+                error_message = str(list(unused_errors.values())[0])
 
-                self.assertTrue(
-                    project_2_reported,
+                self.assertIn(
+                    "2",
+                    error_message,
                     "Project 2 should be reported (above threshold, can be funded)",
                 )
-                self.assertFalse(
-                    project_4_reported,
+                self.assertNotIn(
+                    "4",
+                    error_message,
                     "Project 4 should not be reported (below threshold)",
                 )
 

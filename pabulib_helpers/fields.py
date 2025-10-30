@@ -46,12 +46,20 @@ META_FIELDS_ORDER = {
     "budget": {"datatype": float, "obligatory": True},
     "vote_type": {
         "datatype": str,
-        "checker": lambda x: x in validate.VOTE_TYPES,
+        "checker": lambda x: (
+            True
+            if x in validate.VOTE_TYPES
+            else f"invalid vote_type '{x}'. Valid options are: {', '.join(validate.VOTE_TYPES)}"
+        ),
         "obligatory": True,
     },
     "rule": {
         "datatype": str,
-        "checker": lambda x: x in validate.RULES,
+        "checker": lambda x: (
+            True
+            if x in validate.RULES
+            else f"invalid rule '{x}'. Valid options are: {', '.join(validate.RULES)}"
+        ),
         "obligatory": True,
     },
     # change on the webpage that dates are obligatory
@@ -84,8 +92,22 @@ META_FIELDS_ORDER = {
         "datatype": str,
         "checker": validate.currency_code,
     },
-    "fully_funded": {"datatype": int, "checker": lambda x: x in [1]},
-    "experimental": {"datatype": int, "checker": lambda x: x in [1]},
+    "fully_funded": {
+        "datatype": int,
+        "checker": lambda x: (
+            True
+            if x in [1]
+            else f"invalid fully_funded value '{x}'. Valid options are: 1"
+        ),
+    },
+    "experimental": {
+        "datatype": int,
+        "checker": lambda x: (
+            True
+            if x in [1]
+            else f"invalid experimental value '{x}'. Valid options are: 1"
+        ),
+    },
     "comment": {
         "datatype": str,
         "checker": lambda x: (
@@ -111,7 +133,14 @@ PROJECTS_FIELDS_ORDER = {
     "name": {"datatype": str},
     "category": {"datatype": list, "checker": validate.if_list, "nullable": True},
     "target": {"datatype": list, "checker": validate.if_list, "nullable": True},
-    "selected": {"datatype": int, "checker": lambda x: x in [0, 1, 2, 3]},
+    "selected": {
+        "datatype": int,
+        "checker": lambda x: (
+            True
+            if x in [0, 1, 2, 3]
+            else f"invalid selected value '{x}'. Valid options are: 0, 1, 2, 3"
+        ),
+    },
     "neighborhood": {"datatype": str},
     "subunit": {"datatype": str},
     "district": {"datatype": str},
@@ -130,12 +159,20 @@ VOTES_FIELDS_ORDER = {
     "age": {"datatype": int, "nullable": True},
     "sex": {
         "datatype": str,
-        "checker": lambda x: x in ["M", "F", "O"],
+        "checker": lambda x: (
+            True
+            if x in ["M", "F", "O"]
+            else f"invalid sex value '{x}'. Valid options are: M, F, O"
+        ),
         "nullable": True,
     },
     "voting_method": {
         "datatype": str,
-        "checker": lambda x: x in ["internet", "paper"],
+        "checker": lambda x: (
+            True
+            if x in ["internet", "paper"]
+            else f"invalid voting_method '{x}'. Valid options are: internet, paper"
+        ),
     },
     "district": {"datatype": str, "nullable": True},
     "neighborhood": {"datatype": str, "nullable": True},
