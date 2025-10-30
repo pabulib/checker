@@ -100,7 +100,7 @@ class TestAdvancedScenarios(unittest.TestCase):
         # Should report projects in greedy order until budget exhausted
         # Greedy order by votes: 6(22), 2(20), 4(18), 3(15), 5(12)
         # Remaining budget: 700
-        # Fund project 6 (cost 500) → remaining: 200  
+        # Fund project 6 (cost 500) → remaining: 200
         # Cannot fund project 2 (cost 400) → exceeds budget
         # Fund project 4 (cost 200) → remaining: 0
         errors = self.checker.file_results["errors"]
