@@ -1,5 +1,10 @@
 import json
 import os
+import sys
+
+# Add the project root directory to Python path to use local modules
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, project_root)
 
 from pabulib.checker import Checker
 

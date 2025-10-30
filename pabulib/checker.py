@@ -36,6 +36,24 @@ class Checker:
         self.counted_votes = defaultdict(int)
         self.counted_scores = defaultdict(int)
 
+    def _get_default_value_for_type(self, datatype):
+        """
+        Get the default value for a given datatype.
+
+        Args:
+            datatype: The Python type (str, int, float, list)
+
+        Returns:
+            The default value for that type
+        """
+        default_values = {
+            str: "",
+            int: 0,
+            float: 0.0,
+            list: [],
+        }
+        return default_values.get(datatype, "")
+
     def add_error(self, error_type: str, details: str, level: str = "errors") -> None:
         """
         Record an error of the given error_type with details.
@@ -57,36 +75,48 @@ class Checker:
 
     def check_empty_lines(self, lines: List[str]) -> None:
         """
-        Check for and report empty lines in the file.
+        Remove empty lines from the file and count how many were removed.
 
         Args:
             lines (List[str]): List of file lines.
         """
-        if lines and lines[-1].strip() == "":
-            lines.pop()
-        empty_lines = [i for i, line in enumerate(lines, start=1) if line.strip() == ""]
-        if empty_lines:
-            self.add_error("empty lines", f"contains empty lines at: {empty_lines}")
+        # Count empty lines before removal (including potential trailing empty line)
+        empty_count = sum(1 for line in lines if line.strip() == "")
+
+        # Remove all empty lines in place
+        lines[:] = [line for line in lines if line.strip() != ""]
+
+        # Add to error report if empty lines were removed
+        if empty_count > 0:
+            self.add_error(
+                "empty lines removed",
+                f"Removed {empty_count} empty lines from the file.",
+                level="warnings",
+            )
 
     def check_if_commas_in_floats(self) -> None:
         """
         Check if there are commas in float values and correct them if found.
         """
         error_type = "comma in float!"
-        if "," in self.meta["budget"]:
+
+        # Handle budget field - ensure it's a string before checking for commas
+        budget_value = str(self.meta["budget"])
+        if "," in budget_value:
             self.add_error(error_type, "in budget")
             # replace it to continue with other checks
-            self.meta["budget"] = self.meta["budget"].replace(",", ".")
+            self.meta["budget"] = budget_value.replace(",", ".")
 
         if self.meta.get("max_sum_cost"):
-            if "," in self.meta["max_sum_cost"]:
+            max_sum_cost_value = str(self.meta["max_sum_cost"])
+            if "," in max_sum_cost_value:
                 self.add_error(error_type, "in max_sum_cost")
                 # replace it to continue with other checks
-                self.meta["max_sum_cost"] = self.meta["max_sum_cost"].replace(",", ".")
+                self.meta["max_sum_cost"] = max_sum_cost_value.replace(",", ".")
 
         for project_id, project_data in self.projects.items():
             cost = project_data["cost"]
-            if not isinstance(cost, int) and "," in cost:
+            if not isinstance(cost, int) and "," in str(cost):
                 self.add_error(
                     error_type, f"in project: `{project_id}`, cost: `{cost}`"
                 )
@@ -99,7 +129,15 @@ class Checker:
         """
         budget_spent = 0
         all_projects_cost = 0
-        budget_available = math.floor(float(self.meta["budget"].replace(",", ".")))
+        # Handle budget field - convert to string first, then to float for calculations
+        budget_str = str(self.meta["budget"]).replace(",", ".")
+
+        # Handle empty budget values
+        try:
+            budget_available = math.floor(float(budget_str)) if budget_str else 0
+        except (ValueError, TypeError):
+            budget_available = 0
+
         all_projects = []
 
         for project_id, project_data in self.projects.items():
@@ -150,31 +188,71 @@ class Checker:
             )
         # check if unused budget
         budget_remaining = budget_available - budget_spent
+
+        # Get unselected projects that are above threshold
+        unselected_projects = []
         for project_id, project_data in self.projects.items():
             selected_field = project_data.get("selected")
             if selected_field and int(selected_field) == 0:
                 project_cost = int(project_data["cost"])
-                # Skip "unused budget" error if project is below threshold
+                # Skip if project is below threshold
                 if self.threshold > 0:
                     project_score = float(project_data.get(self.results_field, 0))
                     if project_score <= self.threshold:
                         continue  # Not eligible → skip
 
-                if project_cost <= budget_remaining:
-                    self.add_error(
-                        "unused budget",
-                        f"project: {project_id} can be funded but it's not selected",
+                unselected_projects.append(
+                    (
+                        project_id,
+                        project_cost,
+                        float(project_data.get(self.results_field, 0)),
                     )
+                )
+
+        # Sort by votes/score (descending) to prioritize best projects
+        unselected_projects.sort(key=lambda x: x[2], reverse=True)
+
+        # Try to fund projects in order of priority, checking remaining budget
+        current_remaining = budget_remaining
+        for project_id, project_cost, project_score in unselected_projects:
+            if project_cost <= current_remaining:
+                self.add_error(
+                    "unused budget",
+                    f"project: {project_id} can be funded but it's not selected",
+                )
+                # Subtract cost from remaining budget for next iteration
+                current_remaining -= project_cost
 
     def check_number_of_votes(self) -> None:
         """
         Compare the number of votes from META and VOTES sections, log discrepancies.
         """
         meta_votes = self.meta["num_votes"]
-        if int(meta_votes) != len(self.votes):
+        actual_votes_count = len(self.votes)
+
+        # Check if num_votes field is missing or empty
+        if not meta_votes or str(meta_votes).strip() == "":
+            self.add_error(
+                "missing num_votes field",
+                f"num_votes field is missing or empty in META section, but found {actual_votes_count} votes in file",
+            )
+            return
+
+        # Handle invalid values by treating them as 0
+        try:
+            meta_votes_int = int(meta_votes)
+        except (ValueError, TypeError):
+            self.add_error(
+                "invalid num_votes field",
+                f"num_votes field has invalid value: `{meta_votes}`, expected integer, but found {actual_votes_count} votes in file",
+            )
+            return
+
+        # Compare the numbers if both are valid
+        if meta_votes_int != actual_votes_count:
             self.add_error(
                 "different number of votes",
-                f"votes number in META: `{meta_votes}` vs counted from file: `{len(self.votes)}`",
+                f"votes number in META: `{meta_votes}` vs counted from file: `{actual_votes_count}`",
             )
 
     def check_number_of_projects(self) -> None:
@@ -182,10 +260,20 @@ class Checker:
         Compare the number of projects from META and PROJECTS sections, log discrepancies.
         """
         meta_projects = self.meta["num_projects"]
-        if int(meta_projects) != len(self.projects):
+        actual_projects_count = len(self.projects)
+
+        # Handle empty or invalid values by treating them as 0
+        try:
+            meta_projects_int = int(meta_projects) if meta_projects else 0
+        except (ValueError, TypeError):
+            meta_projects_int = 0
+
+        # If meta_projects is 0 (default value or empty), it likely means the field was missing or empty
+        # We still want to report the discrepancy but allow processing to continue
+        if meta_projects_int != actual_projects_count:
             self.add_error(
                 "different number of projects",
-                f"projects number in meta: `{meta_projects}` vs counted from file: `{len(self.projects)}`",
+                f"projects number in meta: `{meta_projects}` vs counted from file: `{actual_projects_count}`",
             )
 
     def check_duplicated_votes(self) -> None:
@@ -311,8 +399,10 @@ class Checker:
         """
         if not any([self.votes_in_projects, self.scores_in_projects]):
             error_type = "No votes or score counted in PROJECTS section"
-            details = "There should be at least one field"
-            self.add_error(error_type, details)
+            details = (
+                "There should be at least one field (recommended for data completeness)"
+            )
+            self.add_error(error_type, details, level="warnings")
         if self.votes_in_projects:
             self.check_if_correct_votes_number()
         if self.scores_in_projects:
@@ -445,7 +535,14 @@ class Checker:
         selected_field = next(iter(self.projects.values())).get("selected")
         if selected_field:
             projects = utils.sort_projects_by_results(self.projects)
-            budget = float(self.meta["budget"].replace(",", "."))
+            budget_str = str(self.meta["budget"]).replace(",", ".")
+
+            # Handle empty budget values
+            try:
+                budget = float(budget_str) if budget_str else 0.0
+            except (ValueError, TypeError):
+                budget = 0.0
+
             rule = self.meta["rule"]
             if self.meta["unit"] == "Poznań":
                 self.verify_poznan_selected(budget, projects, self.results_field)
@@ -486,19 +583,24 @@ class Checker:
             Logs:
                 Errors for missing required fields, unknown fields, and incorrect field order.
             """
-            # Check for missing obligatory fields
-            missing_fields = [
-                field
-                for field, props in fields_order.items()
-                if props.get("obligatory") and field not in data
-            ]
-            if missing_fields:
-                error_type = f"missing {field_name} obligatory field"
-                details = f"missing fields: {missing_fields}"
-                self.add_error(error_type, details)
+            # Filter out special marker fields for validation
+            filtered_data = {
+                k: v
+                for k, v in data.items()
+                if not (k.startswith("__") and k.endswith("_was_missing__"))
+            }
+
+            # Skip certain fields that are allowed but not part of the official schema
+            # key field is automatically generated and should be ignored
+            skipped_fields = {"key"}
+            filtered_data = {
+                k: v for k, v in filtered_data.items() if k not in skipped_fields
+            }
 
             # Check for not known fields
-            not_known_fields = [item for item in data if item not in fields_order]
+            not_known_fields = [
+                item for item in filtered_data if item not in fields_order
+            ]
             if not_known_fields:
                 error_type = f"not known {field_name} fields"
                 details = f"{field_name} contains not known fields: {not_known_fields}."
@@ -509,8 +611,8 @@ class Checker:
             # Extract the correct order of fields from fields_order
             fields_order_keys = list(fields_order.keys())
 
-            # Get the current order of keys from the data dictionary
-            data_keys = list(data.keys())
+            # Get the current order of keys from the filtered data dictionary
+            data_keys = list(filtered_data.keys())
 
             # Generate the correct order based on fields_order_keys
             correct_data_order = sorted(
@@ -545,6 +647,10 @@ class Checker:
 
             # Validate each field
             for field, value in data.items():
+                # Skip special marker fields
+                if field.startswith("__") and field.endswith("_was_missing__"):
+                    continue
+
                 if field not in fields_order:
                     continue  # Skip fields not in the order list
 
@@ -552,14 +658,21 @@ class Checker:
                 expected_type = field_rules["datatype"]
                 checker = field_rules.get("checker")
                 nullable = field_rules.get("nullable")
+                obligatory = field_rules.get("obligatory", False)
+
+                # Check if required field was originally missing from the file
+                missing_marker = f"__{field}_was_missing__"
+                if obligatory and data.get(missing_marker, False):
+                    error_type = f"missing {field_name} field value"
+                    details = f"{identifier}{field_name} field '{field}' is required but was missing from the file."
+                    self.add_error(error_type, details)
+                    continue  # Continue processing with default value
 
                 # Handle nullable fields
                 if not value:
                     if not nullable:
                         error_type = f"invalid {field_name} field value"
-                        details = (
-                            f"{identifier}{field_name} field '{field}' cannot be None."
-                        )
+                        details = f"{identifier}{field_name} field '{field}' cannot be None or empty."
                         self.add_error(error_type, details)
                     continue
 
@@ -750,48 +863,83 @@ class Checker:
         """
         for identifier, file_or_content in enumerate(files, start=1):
             self.file_results = deepcopy(self.error_levels)
-            if os.path.isfile(file_or_content):
-                # Input is a file path
-                identifier = os.path.splitext(os.path.basename(file_or_content))[0]
-                print(f"Processing file: `{identifier}`...")
-                with open(file_or_content, "r", encoding="utf-8") as file:
-                    file_or_content = file.read()
-            lines = file_or_content.split("\n")
 
-            (
-                self.meta,
-                self.projects,
-                self.votes,
-                self.votes_in_projects,
-                self.scores_in_projects,
-            ) = parse_pb_lines(lines)
+            try:
+                if isinstance(file_or_content, str) and os.path.isfile(file_or_content):
+                    # Input is a file path that exists
+                    identifier = os.path.splitext(os.path.basename(file_or_content))[0]
+                    print(f"Processing file: `{identifier}`...")
+                    with open(file_or_content, "r", encoding="utf-8") as file:
+                        file_or_content = file.read()
+                elif isinstance(file_or_content, str) and (
+                    file_or_content.strip().startswith("META")
+                    or "\n" in file_or_content
+                ):
+                    # Input appears to be content (starts with META or has newlines)
+                    pass  # file_or_content is already the content
+                elif isinstance(file_or_content, str):
+                    # Input looks like a file path but doesn't exist
+                    identifier = os.path.splitext(os.path.basename(file_or_content))[0]
+                    print(f"❌ ERROR: File not found: `{file_or_content}`")
+                    self.results[identifier] = {
+                        "results": {
+                            "errors": {
+                                "file not found": {
+                                    1: f"File '{file_or_content}' does not exist"
+                                }
+                            }
+                        }
+                    }
+                    self.results["metadata"]["invalid"] += 1
+                    self.results["metadata"]["processed"] += 1
+                    continue
 
-            # Minimum number of votes / score for project to be eligible for implementation
-            self.threshold = int(self.meta.get("min_project_score_threshold", 0))
+                lines = file_or_content.split("\n")
 
-            self.results[identifier] = dict()
-            self.results[identifier]["webpage_name"] = self.create_webpage_name()
+                (
+                    self.meta,
+                    self.projects,
+                    self.votes,
+                    self.votes_in_projects,
+                    self.scores_in_projects,
+                ) = parse_pb_lines(lines)
 
-            # do file checks
-            self.check_empty_lines(lines)
+                # Minimum number of votes / score for project to be eligible for implementation
+                self.threshold = int(self.meta.get("min_project_score_threshold", 0))
 
-            # results field, votes or score (points)
-            self.results_field = "score" if self.scores_in_projects else "votes"
+                self.results[identifier] = dict()
+                self.results[identifier]["webpage_name"] = self.create_webpage_name()
 
-            # do section checks
-            self.run_checks()
+                # do file checks
+                self.check_empty_lines(lines)
 
-            if not any(
-                [self.file_results.get("errors"), self.file_results.get("warnings")]
-            ):
-                self.results[identifier]["results"] = "File looks correct!"
-                self.results["metadata"]["valid"] += 1
+                # results field, votes or score (points)
+                self.results_field = "score" if self.scores_in_projects else "votes"
 
-            else:
-                self.results[identifier]["results"] = self.file_results
+                # do section checks
+                self.run_checks()
+
+                if not any([self.file_results.get("errors")]):
+                    self.results[identifier]["results"] = "File looks correct!"
+                    self.results["metadata"]["valid"] += 1
+                else:
+                    self.results[identifier]["results"] = self.file_results
+                    self.results["metadata"]["invalid"] += 1
+
+                self.results["metadata"]["processed"] += 1
+
+            except Exception as e:
+                # Handle any other errors during processing
+                print(f"❌ ERROR processing file `{identifier}`: {e}")
+                self.results[identifier] = {
+                    "results": {
+                        "errors": {
+                            "processing error": {1: f"Failed to process file: {str(e)}"}
+                        }
+                    }
+                }
                 self.results["metadata"]["invalid"] += 1
-
-            self.results["metadata"]["processed"] += 1
+                self.results["metadata"]["processed"] += 1
 
         results_cleaned = self.convert_to_dict(self.results)
         return results_cleaned

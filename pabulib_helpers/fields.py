@@ -86,7 +86,12 @@ META_FIELDS_ORDER = {
     },
     "fully_funded": {"datatype": int, "checker": lambda x: x in [1]},
     "experimental": {"datatype": int, "checker": lambda x: x in [1]},
-    "comment": {"datatype": str, "checker": lambda x: x.startswith("#1: ")},
+    "comment": {
+        "datatype": str,
+        "checker": lambda x: (
+            True if x.startswith("#1: ") else "comment should follow the '#1: ' format"
+        ),
+    },
     "acknowledgments": {"datatype": str},
     # Amsterdam specific fields
     "leftover_budget": {"datatype": str},

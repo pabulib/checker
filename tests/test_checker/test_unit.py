@@ -1,5 +1,12 @@
+import os
+import sys
 import unittest
 from copy import deepcopy
+from io import StringIO
+
+# Add the project root directory to Python path to use local modules
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+sys.path.insert(0, project_root)
 
 from pabulib.checker import Checker
 
@@ -25,14 +32,27 @@ class TestCheckerUnit(unittest.TestCase):
 
     def test_check_empty_lines(self):
         """
-        Test that `check_empty_lines` correctly identifies and removes empty lines.
+        Test that `check_empty_lines` correctly removes empty lines.
         """
         self.checker.file_results = deepcopy(self.checker.error_levels)
         lines = ["line1", "", "line2", "line3", ""]
+        original_length = len(lines)
+
+        # Initialize file_results before calling the method
+        self.checker.file_results = deepcopy(self.checker.error_levels)
+
         self.checker.check_empty_lines(lines)
-        self.check_if_error_added_correctly(
-            "empty lines", "contains empty lines at: [2]"
+
+        # Check that empty lines were removed
+        self.assertEqual(len(lines), 3)  # Should have 3 lines left
+        self.assertNotIn("", lines)  # No empty strings should remain
+
+        # Check that warning was added (new behavior)
+        warnings = self.checker.file_results["warnings"].get("empty lines removed")
+        self.assertIsNotNone(
+            warnings, "Empty line removal should be reported as warning"
         )
+        self.assertIn("Removed 2 empty lines from the file.", warnings[1])
 
     def test_check_no_empty_lines(self):
         # Test case with no empty lines
@@ -175,49 +195,67 @@ class TestCheckerUnit(unittest.TestCase):
     def test_validate_fields_missing_required(self):
         """
         Test if required fields are correctly validated and errors are logged for missing fields.
+        With the new robust checker, missing fields are assigned default values and reported as
+        'missing meta field value' errors instead of 'missing meta obligatory field'.
         """
         self.checker.file_results = deepcopy(self.checker.error_levels)
 
-        # Fake data
+        # Simulate data that would have missing required fields after parsing
         self.checker.meta = {
-            "country": "TestCountry",  # Missing 'unit' and 'instance'
+            "country": "TestCountry",
             "budget": "1000",
             "date_begin": "2024",
             "date_end": "2024",
+            # Simulate missing required fields with default values + markers
+            "unit": "",
+            "__unit_was_missing__": True,
+            "instance": "",
+            "__instance_was_missing__": True,
         }
 
-        # Mock fields order for validation
-        self.checker.fields_order = {
-            "country": {"obligatory": True},
-            "unit": {"obligatory": True},
-            "instance": {"obligatory": True},
-            "budget": {"obligatory": False},
-        }
         self.checker.projects = {}
         self.checker.votes = {}
 
         # Call the method under test
         self.checker.check_fields()
 
-        # Check for errors in file_results
-        error = self.checker.file_results["errors"].get("missing meta obligatory field")
+        # Check for the new error type that reports missing fields
+        error = self.checker.file_results["errors"].get("missing meta field value")
         self.assertIsNotNone(error, "Error for missing required fields not logged.")
-        self.assertIn("unit", error[1], "Missing 'unit' not detected.")
-        self.assertIn("instance", error[1], "Missing 'instance' not detected.")
+        # Check that both missing fields are reported
+        found_unit = any("unit" in str(detail) for detail in error.values())
+        found_instance = any("instance" in str(detail) for detail in error.values())
+        self.assertTrue(found_unit, "Missing 'unit' not detected.")
+        self.assertTrue(found_instance, "Missing 'instance' not detected.")
 
     def test_validate_fields_wrong_order(self):
         """
         Test if field order validation detects incorrectly ordered fields.
+        With the new robust checker, missing fields get default values, so we need to simulate
+        them with the marker fields.
         """
         self.checker.file_results = deepcopy(self.checker.error_levels)
 
-        # Fake data with incorrect field order
+        # Fake data with incorrect field order and simulated missing fields
         self.checker.meta = {
             "instance": "TestInstance",
             "unit": "TestUnit",
             "country": "TestCountry",
             "date_begin": "2024",
             "date_end": "2024",
+            # Simulate missing required fields that would be added by the parser
+            "description": "",
+            "__description_was_missing__": True,
+            "num_projects": 0,
+            "__num_projects_was_missing__": True,
+            "num_votes": 0,
+            "__num_votes_was_missing__": True,
+            "budget": 0.0,
+            "__budget_was_missing__": True,
+            "vote_type": "",
+            "__vote_type_was_missing__": True,
+            "rule": "",
+            "__rule_was_missing__": True,
         }
 
         self.checker.projects = {}
@@ -226,19 +264,46 @@ class TestCheckerUnit(unittest.TestCase):
         # Call method to validate fields
         self.checker.check_fields()
 
-        # Check for field order error
+        # Check for field order error (now includes all fields, not just the present ones)
         warnings = self.checker.file_results["warnings"].get("wrong meta fields order")
         self.assertEqual(
             warnings[1],
-            "correct order should be: ['country', 'unit', 'instance', 'date_begin', 'date_end']",
+            "correct order should be: ['description', 'country', 'unit', 'instance', 'num_projects', 'num_votes', 'budget', 'vote_type', 'rule', 'date_begin', 'date_end']",
         )
-        errors = self.checker.file_results["errors"].get(
-            "missing meta obligatory field"
-        )
-        self.assertEqual(
-            errors[1],
-            "missing fields: ['description', 'num_projects', 'num_votes', 'budget', 'vote_type', 'rule']",
-        )
+
+        # Check for missing field value errors (the new error type)
+        errors = self.checker.file_results["errors"].get("missing meta field value")
+        self.assertIsNotNone(errors, "Missing field value errors not logged.")
+
+        # Verify that some of the expected missing fields are reported
+        missing_fields_found = []
+        for error_detail in errors.values():
+            if "description" in str(error_detail):
+                missing_fields_found.append("description")
+            if "num_projects" in str(error_detail):
+                missing_fields_found.append("num_projects")
+            if "num_votes" in str(error_detail):
+                missing_fields_found.append("num_votes")
+            if "budget" in str(error_detail):
+                missing_fields_found.append("budget")
+            if "vote_type" in str(error_detail):
+                missing_fields_found.append("vote_type")
+            if "rule" in str(error_detail):
+                missing_fields_found.append("rule")
+
+        # We should find all the missing required fields
+        expected_missing = [
+            "description",
+            "num_projects",
+            "num_votes",
+            "budget",
+            "vote_type",
+            "rule",
+        ]
+        for field in expected_missing:
+            self.assertIn(
+                field, missing_fields_found, f"Missing field '{field}' not detected."
+            )
 
     def test_validate_fields_unknown_field(self):
         """
@@ -533,7 +598,7 @@ class TestCheckerUnit(unittest.TestCase):
         )
         self.assertEqual(
             error.get("invalid meta field value")[1],
-            "meta field 'fully_funded' cannot be None.",
+            "meta field 'fully_funded' cannot be None or empty.",
         )
 
     def test_validate_ff_flag_other_int(self):

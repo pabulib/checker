@@ -1,7 +1,9 @@
 from collections import defaultdict
 
+
 def get_str_with_sep_from(number):
     return f"{number:,d}".replace(",", " ")
+
 
 def count_votes_per_project(votes):
     counted_votes = defaultdict(int)
@@ -22,6 +24,7 @@ def create_points_based_on_vote_length(projects):
         point -= 1
     return points
 
+
 def count_points_per_project(votes):
     counted_scores = defaultdict(int)
     for _, vote in votes.items():
@@ -35,20 +38,26 @@ def count_points_per_project(votes):
             counted_scores[project] += int(point)
     return counted_scores
 
+
 def sort_projects_by_results(projects):
     first_project_dict = next(iter(projects.values()))
     if "score" in first_project_dict:
         score_field = "score"
-    else:
+    elif "votes" in first_project_dict:
         score_field = "votes"
+    else:
+        # If neither score nor votes field exists, return projects unsorted
+        return projects
+
     projects = dict(
         sorted(
             projects.items(),
-            key=lambda x: int(x[1][score_field]),
+            key=lambda x: int(x[1][score_field]) if x[1][score_field] else 0,
             reverse=True,
         )
     )
     return projects
+
 
 def make_cost_printable(cost):
     cost = float(cost)
