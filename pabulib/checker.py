@@ -221,12 +221,13 @@ class Checker:
                 # Subtract cost from remaining budget for next iteration
                 current_remaining -= project_cost
 
-        # Add a single error message for all fundable projects
+        # Add a single warning message for all fundable projects
         if fundable_projects:
             projects_str = ", ".join(map(str, fundable_projects))
             self.add_error(
                 "unused budget",
                 f"projects {projects_str} can be funded but are not selected",
+                level="warnings",
             )
 
     def check_number_of_votes(self) -> None:
@@ -712,6 +713,21 @@ class Checker:
 
         self.validate_date_range(self.meta)
 
+        # Conditional meta validations
+        # If cumulative voting is used, max_sum_points must be provided
+        try:
+            vote_type = self.meta.get("vote_type")
+        except Exception:
+            vote_type = None
+        if vote_type == "cumulative":
+            if not self.meta.get("max_sum_points") and self.meta.get(
+                "max_sum_points", 0
+            ) in ("", 0, None):
+                self.add_error(
+                    "missing meta field value",
+                    "For vote_type 'cumulative', 'max_sum_points' is required.",
+                )
+
         # Check projects fields
         # Check field order and missing fields for the first project only
         first_project = next(iter(self.projects.values()), {})
@@ -925,11 +941,13 @@ class Checker:
                 # do section checks
                 self.run_checks()
 
+                # Always include detailed results (errors and warnings)
+                self.results[identifier]["results"] = self.file_results
+
+                # Mark file as valid if there are no errors, even if warnings exist
                 if not any([self.file_results.get("errors")]):
-                    self.results[identifier]["results"] = "File looks correct!"
                     self.results["metadata"]["valid"] += 1
                 else:
-                    self.results[identifier]["results"] = self.file_results
                     self.results["metadata"]["invalid"] += 1
 
                 self.results["metadata"]["processed"] += 1

@@ -103,9 +103,9 @@ class TestAdvancedScenarios(unittest.TestCase):
         # Fund project 6 (cost 500) → remaining: 200
         # Cannot fund project 2 (cost 400) → exceeds budget
         # Fund project 4 (cost 200) → remaining: 0
-        errors = self.checker.file_results["errors"]
-        if "unused budget" in errors:
-            unused_errors = errors["unused budget"]
+        warnings = self.checker.file_results["warnings"]
+        if "unused budget" in warnings:
+            unused_errors = warnings["unused budget"]
             error_message = str(list(unused_errors.values())[0])
 
             # Should report projects 6 and 4 (can be funded in greedy order)
@@ -257,9 +257,9 @@ class TestAdvancedScenarios(unittest.TestCase):
 
         # Should only consider projects 2, 3, 5 (above threshold)
         # Should not consider project 4 (below threshold)
-        errors = self.checker.file_results["errors"]
-        if "unused budget" in errors:
-            unused_errors = errors["unused budget"]
+        warnings = self.checker.file_results["warnings"]
+        if "unused budget" in warnings:
+            unused_errors = warnings["unused budget"]
             error_message = str(list(unused_errors.values())[0])
 
             # Check if any above-threshold projects are mentioned
@@ -401,12 +401,12 @@ v4;1
         # Should have some validation issues but process successfully
         self.assertIsInstance(file_results, dict)
 
-        if "errors" in file_results:
-            errors = file_results["errors"]
+        if "warnings" in file_results:
+            warnings = file_results["warnings"]
 
             # Should detect unused budget for project 2 only (project 4 below threshold)
-            if "unused budget" in errors:
-                unused_errors = errors["unused budget"]
+            if "unused budget" in warnings:
+                unused_errors = warnings["unused budget"]
                 error_message = str(list(unused_errors.values())[0])
 
                 self.assertIn(
@@ -476,11 +476,11 @@ v4;1
         self.checker.check_budgets()
 
         # With zero budget, no projects should be reported as unused budget
-        errors = self.checker.file_results["errors"]
+        warnings = self.checker.file_results["warnings"]
         self.assertNotIn(
             "unused budget",
-            errors,
-            "With zero budget, no unused budget errors should be reported",
+            warnings,
+            "With zero budget, no unused budget warnings should be reported",
         )
 
     def test_malformed_numeric_fields(self):

@@ -151,11 +151,11 @@ class TestNewFunctionality(unittest.TestCase):
         self.checker.check_budgets()
 
         # Should only report project 2 as unused budget (can be funded)
-        errors = self.checker.file_results["errors"]
-        self.assertIn("unused budget", errors)
+        warnings = self.checker.file_results["warnings"]
+        self.assertIn("unused budget", warnings)
 
         # Should only mention project 2, not project 3
-        unused_errors = errors["unused budget"]
+        unused_errors = warnings["unused budget"]
         error_message = str(list(unused_errors.values())[0])
 
         self.assertIn(
@@ -213,9 +213,9 @@ class TestNewFunctionality(unittest.TestCase):
         self.checker.check_budgets()
 
         # Should only report project 2 (above threshold and can be funded)
-        errors = self.checker.file_results["errors"]
-        if "unused budget" in errors:
-            unused_errors = errors["unused budget"]
+        warnings = self.checker.file_results["warnings"]
+        if "unused budget" in warnings:
+            unused_errors = warnings["unused budget"]
             error_message = str(list(unused_errors.values())[0])
 
             self.assertIn(
@@ -275,10 +275,10 @@ class TestNewFunctionality(unittest.TestCase):
         self.checker.check_budgets()
 
         # Should only report project 2 (higher priority and fits)
-        errors = self.checker.file_results["errors"]
-        self.assertIn("unused budget", errors)
+        warnings = self.checker.file_results["warnings"]
+        self.assertIn("unused budget", warnings)
 
-        unused_errors = errors["unused budget"]
+        unused_errors = warnings["unused budget"]
         error_message = str(list(unused_errors.values())[0])
 
         self.assertIn(
@@ -518,21 +518,21 @@ v3;2,4
         # Process the test data
         results = self.checker.process_files([test_data])
 
-        # Should be invalid due to unused budget
-        self.assertEqual(results["metadata"]["invalid"], 1)
+        # File may contain other validation errors; unused budget should be a warning.
+        self.assertEqual(results["metadata"]["processed"], 1)
 
         # Get the file results
         file_key = next(
             (k for k in results.keys() if k != "metadata" and k != "summary"), None
         )
         file_results = results[file_key]["results"]
-        errors = file_results["errors"]
+        warnings = file_results["warnings"]
 
-        # Should have unused budget errors
-        self.assertIn("unused budget", errors)
+        # Should have unused budget warning
+        self.assertIn("unused budget", warnings)
 
         # Check which projects are reported
-        unused_errors = errors["unused budget"]
+        unused_errors = warnings["unused budget"]
         error_message = str(list(unused_errors.values())[0])
 
         # Should report projects 2 and 4 (can be funded in greedy order)
