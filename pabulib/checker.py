@@ -80,6 +80,10 @@ class Checker:
         Args:
             lines (List[str]): List of file lines.
         """
+        # Check for trailing empty line (allowed)
+        if lines and lines[-1].strip() == "":
+            lines.pop()
+
         # Count empty lines before removal (including potential trailing empty line)
         empty_count = sum(1 for line in lines if line.strip() == "")
 

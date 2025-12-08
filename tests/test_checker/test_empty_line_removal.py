@@ -70,7 +70,7 @@ voter_id;vote
                 warnings = file_results["warnings"]
                 self.assertIn("empty lines removed", warnings)
                 self.assertIn(
-                    "Removed 7 empty lines from the file.",
+                    "Removed 6 empty lines from the file.",
                     warnings["empty lines removed"][1],
                 )
 
@@ -149,7 +149,7 @@ voter_id;vote
             warnings = file_results["warnings"]
             self.assertIn("empty lines removed", warnings)
             self.assertIn(
-                "Removed 7 empty lines from the file.",
+                "Removed 6 empty lines from the file.",
                 warnings["empty lines removed"][1],
             )
 

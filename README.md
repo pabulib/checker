@@ -25,7 +25,7 @@ pip install -e .
 
 # Or build and install the wheel
 python -m build
-pip install dist/pabulib_checker-0.2.0-py3-none-any.whl
+pip install dist/pabulib_checker-0.3.1-py3-none-any.whl
 ```
 
 ## Dependencies
@@ -327,6 +327,9 @@ For detailed examples or advanced usage, refer to the comments in the source cod
 ---
 
 ## Changelog
+
+### Version 0.3.1 (2025-12-08)
+- **🐛 Fixed Empty Line Validation:** The checker now correctly ignores a single trailing empty line in files, preventing false positive warnings.
 
 ### Version 0.2.0 (2025-10-30)
 **Major Improvements:**
