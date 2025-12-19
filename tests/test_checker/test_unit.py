@@ -700,6 +700,238 @@ class TestCheckerUnit(unittest.TestCase):
             warning, "Unexpected warning triggered when max length was used."
         )
 
+    def test_check_votes_for_invalid_projects_with_invalid_ids(self):
+        """
+        Test that `check_votes_for_invalid_projects` correctly detects votes for non-existent projects.
+        """
+        self.checker.file_results = deepcopy(self.checker.error_levels)
+
+        # Set up projects
+        self.checker.projects = {
+            "1": {"cost": 1000, "name": "Project 1"},
+            "2": {"cost": 2000, "name": "Project 2"},
+            "3": {"cost": 3000, "name": "Project 3"},
+        }
+
+        # Set up votes with some invalid project IDs
+        self.checker.votes = {
+            "voter1": {"vote": "1,2"},  # Valid
+            "voter2": {"vote": "1,99"},  # Invalid: 99 doesn't exist
+            "voter3": {"vote": "2,3"},  # Valid
+            "voter4": {"vote": "5,10,15"},  # Invalid: all non-existent
+        }
+
+        self.checker.check_votes_for_invalid_projects()
+
+        # Check that errors were added for invalid project IDs
+        errors = self.checker.file_results["errors"].get(
+            "vote for non-existent project"
+        )
+        self.assertIsNotNone(errors, "Expected errors for non-existent projects")
+
+        # Should have 4 errors total (voter2: 99, voter4: 5,10,15)
+        self.assertEqual(len(errors), 4, f"Expected 4 errors but got {len(errors)}")
+
+        # Check specific error messages
+        error_messages = list(errors.values())
+        self.assertTrue(
+            any("voter2" in str(msg) and "99" in str(msg) for msg in error_messages),
+            "Expected error for voter2 voting for project 99",
+        )
+        self.assertTrue(
+            any("voter4" in str(msg) and "5" in str(msg) for msg in error_messages),
+            "Expected error for voter4 voting for project 5",
+        )
+
+    def test_check_votes_for_invalid_projects_all_valid(self):
+        """
+        Test that `check_votes_for_invalid_projects` doesn't flag errors when all votes are valid.
+        """
+        self.checker.file_results = deepcopy(self.checker.error_levels)
+
+        # Set up projects
+        self.checker.projects = {
+            "1": {"cost": 1000, "name": "Project 1"},
+            "2": {"cost": 2000, "name": "Project 2"},
+            "3": {"cost": 3000, "name": "Project 3"},
+        }
+
+        # Set up votes - all valid
+        self.checker.votes = {
+            "voter1": {"vote": "1,2"},
+            "voter2": {"vote": "1,3"},
+            "voter3": {"vote": "2,3"},
+        }
+
+        self.checker.check_votes_for_invalid_projects()
+
+        # Check that no errors were added
+        errors = self.checker.file_results["errors"].get(
+            "vote for non-existent project"
+        )
+        self.assertIsNone(
+            errors, "No errors should be reported when all votes are valid"
+        )
+
+    def test_check_votes_for_invalid_projects_with_string_ids(self):
+        """
+        Test that validation works correctly with string project IDs (common in real files).
+        """
+        self.checker.file_results = deepcopy(self.checker.error_levels)
+
+        # Set up projects with string IDs
+        self.checker.projects = {
+            "project_A": {"cost": 1000, "name": "Project A"},
+            "project_B": {"cost": 2000, "name": "Project B"},
+        }
+
+        # Set up votes with mixed valid/invalid string IDs
+        self.checker.votes = {
+            "voter1": {"vote": "project_A,project_B"},  # Valid
+            "voter2": {
+                "vote": "project_A,project_C"
+            },  # Invalid: project_C doesn't exist
+        }
+
+        self.checker.check_votes_for_invalid_projects()
+
+        # Check that error was added for invalid project ID
+        errors = self.checker.file_results["errors"].get(
+            "vote for non-existent project"
+        )
+        self.assertIsNotNone(errors, "Expected error for non-existent project_C")
+        self.assertEqual(len(errors), 1, f"Expected 1 error but got {len(errors)}")
+
+    def test_age_validation_integer(self):
+        """
+        Test that age validation accepts valid integer ages.
+        """
+        self.checker.file_results = deepcopy(self.checker.error_levels)
+
+        # Set up votes with integer ages
+        self.checker.meta = {
+            "country": "Poland",
+            "unit": "Test",
+            "instance": "2024",
+            "date_begin": "2024",
+            "date_end": "2024",
+        }
+        self.checker.projects = {"1": {"cost": 1000}}
+        self.checker.votes = {
+            "voter1": {"vote": "1", "age": "27"},
+            "voter2": {"vote": "1", "age": "0"},
+            "voter3": {"vote": "1", "age": "65"},
+        }
+
+        # Validate fields
+        self.checker.check_fields()
+
+        # Should not have any age-related errors
+        errors = self.checker.file_results["errors"]
+        age_errors = {k: v for k, v in errors.items() if "age" in k.lower()}
+        self.assertEqual(
+            len(age_errors), 0, f"No age errors expected but got: {age_errors}"
+        )
+
+    def test_age_validation_age_buckets(self):
+        """
+        Test that age validation accepts valid age bucket strings.
+        """
+        self.checker.file_results = deepcopy(self.checker.error_levels)
+
+        # Set up votes with age buckets
+        self.checker.meta = {
+            "country": "Poland",
+            "unit": "Test",
+            "instance": "2024",
+            "date_begin": "2024",
+            "date_end": "2024",
+        }
+        self.checker.projects = {"1": {"cost": 1000}}
+        self.checker.votes = {
+            "voter1": {"vote": "1", "age": "40-59"},
+            "voter2": {"vote": "1", "age": "18-25"},
+            "voter3": {"vote": "1", "age": "0-12"},
+            "voter4": {"vote": "1", "age": "60-99"},
+        }
+
+        # Validate fields
+        self.checker.check_fields()
+
+        # Should not have any age-related errors
+        errors = self.checker.file_results["errors"]
+        age_errors = {k: v for k, v in errors.items() if "age" in k.lower()}
+        self.assertEqual(
+            len(age_errors), 0, f"No age errors expected but got: {age_errors}"
+        )
+
+    def test_age_validation_invalid_bucket(self):
+        """
+        Test that age validation rejects invalid age bucket formats.
+        """
+        self.checker.file_results = deepcopy(self.checker.error_levels)
+
+        # Set up votes with invalid age buckets
+        self.checker.meta = {
+            "country": "Poland",
+            "unit": "Test",
+            "instance": "2024",
+            "date_begin": "2024",
+            "date_end": "2024",
+        }
+        self.checker.projects = {"1": {"cost": 1000}}
+        self.checker.votes = {
+            "voter1": {"vote": "1", "age": "40-30"},  # Invalid: start > end
+            "voter2": {"vote": "1", "age": "abc"},  # Invalid: not a number or bucket
+            "voter3": {"vote": "1", "age": "40-"},  # Invalid: incomplete bucket
+        }
+
+        # Validate fields
+        self.checker.check_fields()
+
+        # Should have errors for invalid ages
+        errors = self.checker.file_results["errors"]
+        age_errors = {
+            k: v
+            for k, v in errors.items()
+            if "age" in str(k).lower() or "votes" in str(k).lower()
+        }
+        self.assertGreater(
+            len(age_errors), 0, "Expected age validation errors for invalid formats"
+        )
+
+    def test_age_validation_mixed_formats(self):
+        """
+        Test that age validation accepts a mix of integer and bucket formats.
+        """
+        self.checker.file_results = deepcopy(self.checker.error_levels)
+
+        # Set up votes with mixed age formats
+        self.checker.meta = {
+            "country": "Poland",
+            "unit": "Test",
+            "instance": "2024",
+            "date_begin": "2024",
+            "date_end": "2024",
+        }
+        self.checker.projects = {"1": {"cost": 1000}}
+        self.checker.votes = {
+            "voter1": {"vote": "1", "age": "27"},
+            "voter2": {"vote": "1", "age": "40-59"},
+            "voter3": {"vote": "1", "age": "18"},
+            "voter4": {"vote": "1", "age": "25-34"},
+        }
+
+        # Validate fields
+        self.checker.check_fields()
+
+        # Should not have any age-related errors
+        errors = self.checker.file_results["errors"]
+        age_errors = {k: v for k, v in errors.items() if "age" in k.lower()}
+        self.assertEqual(
+            len(age_errors), 0, f"No age errors expected but got: {age_errors}"
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -301,6 +301,24 @@ class Checker:
                 details = f"duplicated projects in a vote: Voter ID: `{voter}`, vote: `{votes}`."
                 self.add_error(error_type, details)
 
+    def check_votes_for_invalid_projects(self) -> None:
+        """
+        Check if votes contain project IDs that don't exist in the PROJECTS section.
+
+        Iterates through all votes and verifies that each project ID in the vote
+        corresponds to an actual project in the projects list.
+        """
+        valid_project_ids = set(self.projects.keys())
+
+        for voter, vote_data in self.votes.items():
+            project_ids = vote_data["vote"].split(",")
+            for project_id in project_ids:
+                project_id = project_id.strip()
+                if project_id and project_id not in valid_project_ids:
+                    error_type = "vote for non-existent project"
+                    details = f"Voter ID: `{voter}` voted for project `{project_id}` which is not listed in PROJECTS section."
+                    self.add_error(error_type, details)
+
     def check_vote_length(self) -> None:
         """
         Validate the number of votes cast by each voter against allowed limits.
@@ -836,6 +854,7 @@ class Checker:
         self.check_number_of_votes()
         self.check_number_of_projects()
         self.check_vote_length()
+        self.check_votes_for_invalid_projects()
         # TODO check min/max points
         self.check_votes_and_scores()
         self.verify_selected()
