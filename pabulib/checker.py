@@ -92,11 +92,11 @@ class Checker:
         Args:
             lines (List[str]): List of file lines.
         """
-        # Check for trailing empty line (allowed)
+        # Check for trailing empty line (allowed) and remove it first
         if lines and lines[-1].strip() == "":
             lines.pop()
 
-        # Count empty lines before removal (including potential trailing empty line)
+        # Count empty lines after removing the trailing one (these are not allowed)
         empty_count = sum(1 for line in lines if line.strip() == "")
 
         # Remove all empty lines in place
@@ -1169,6 +1169,9 @@ class Checker:
 
                 lines = file_or_content.split("\n")
 
+                # Remove empty lines BEFORE parsing (they break CSV parsing)
+                self.check_empty_lines(lines)
+
                 (
                     self.meta,
                     self.projects,
@@ -1182,9 +1185,6 @@ class Checker:
 
                 self.results[identifier] = dict()
                 self.results[identifier]["webpage_name"] = self.create_webpage_name()
-
-                # do file checks
-                self.check_empty_lines(lines)
 
                 # results field, votes or score (points)
                 self.results_field = "score" if self.scores_in_projects else "votes"

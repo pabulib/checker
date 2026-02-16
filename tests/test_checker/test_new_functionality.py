@@ -312,11 +312,13 @@ class TestNewFunctionality(unittest.TestCase):
 
         # Check warning message contains correct count
         warning_message = warnings["empty lines removed"][1]
-        self.assertIn("Removed 3 empty lines", warning_message)
+        self.assertIn("Removed 2 empty lines", warning_message)
 
         # Check that empty lines were actually removed from the list
         self.assertNotIn("", lines)
-        self.assertEqual(len(lines), 4)  # Original 7 - 3 empty = 4
+        self.assertEqual(
+            len(lines), 4
+        )  # Original 7 - 2 empty (excluding trailing) - 1 trailing = 4
 
     def test_empty_lines_no_warning_when_none(self):
         """

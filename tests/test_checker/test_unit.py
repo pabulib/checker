@@ -52,7 +52,7 @@ class TestCheckerUnit(unittest.TestCase):
         self.assertIsNotNone(
             warnings, "Empty line removal should be reported as warning"
         )
-        self.assertIn("Removed 2 empty lines from the file.", warnings[1])
+        self.assertIn("Removed 1 empty lines from the file.", warnings[1])
 
     def test_check_no_empty_lines(self):
         # Test case with no empty lines
