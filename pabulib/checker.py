@@ -739,8 +739,10 @@ class Checker:
                 # Check if greedy validation found errors
                 if self.file_results.get("errors", {}).get("greedy rule not followed"):
                     # Capture the error details before deleting
-                    greedy_error_details = self.file_results["errors"]["greedy rule not followed"][1]
-                    
+                    greedy_error_details = self.file_results["errors"][
+                        "greedy rule not followed"
+                    ][1]
+
                     # Remove the greedy error and replace with warning
                     del self.file_results["errors"]["greedy rule not followed"]
 
@@ -780,8 +782,10 @@ class Checker:
                 # Check if greedy validation found errors
                 if self.file_results.get("errors", {}).get("greedy rule not followed"):
                     # Capture the error details before deleting
-                    greedy_error_details = self.file_results["errors"]["greedy rule not followed"][1]
-                    
+                    greedy_error_details = self.file_results["errors"][
+                        "greedy rule not followed"
+                    ][1]
+
                     # Remove the greedy error and replace with warning
                     del self.file_results["errors"]["greedy rule not followed"]
 
