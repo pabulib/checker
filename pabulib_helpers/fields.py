@@ -55,11 +55,6 @@ META_FIELDS_ORDER = {
     },
     "rule": {
         "datatype": str,
-        "checker": lambda x: (
-            True
-            if x in validate.RULES
-            else f"invalid rule '{x}'. Valid options are: {', '.join(validate.RULES)}"
-        ),
         "obligatory": True,
     },
     # change on the webpage that dates are obligatory

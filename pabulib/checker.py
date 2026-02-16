@@ -570,9 +570,18 @@ class Checker:
         # if shouldnt_be_selected:
         #    print(f"Projects selected but should not: {shouldnt_be_selected}")
 
-        if should_be_selected or should_be_selected:
+        if should_be_selected or shouldnt_be_selected:
             error_type = "greedy rule not followed"
-            details = f"Projects not selected but should be: {should_be_selected or ''}, and selected but shouldn't: {shouldnt_be_selected or ''}"
+            parts = []
+            if should_be_selected:
+                parts.append(
+                    f"Projects not selected but should be: {', '.join(sorted(should_be_selected))}"
+                )
+            if shouldnt_be_selected:
+                parts.append(
+                    f"Projects selected but shouldn't be: {', '.join(sorted(shouldnt_be_selected))}"
+                )
+            details = ". ".join(parts)
             self.add_error(error_type, details)
 
         if selected_below_threshold:
@@ -642,10 +651,16 @@ class Checker:
 
         if should_be_selected or shouldnt_be_selected:
             error_type = "greedy-no-skip rule not followed"
-            details = (
-                f"Projects not selected but should be: {should_be_selected or 'none'}, "
-                f"and selected but shouldn't: {shouldnt_be_selected or 'none'}"
-            )
+            parts = []
+            if should_be_selected:
+                parts.append(
+                    f"Projects not selected but should be: {', '.join(sorted(should_be_selected))}"
+                )
+            if shouldnt_be_selected:
+                parts.append(
+                    f"Projects selected but shouldn't be: {', '.join(sorted(shouldnt_be_selected))}"
+                )
+            details = ". ".join(parts)
             self.add_error(error_type, details)
 
         if selected_below_threshold:
