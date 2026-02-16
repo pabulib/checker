@@ -5,9 +5,13 @@ import pycountry
 VOTE_TYPES = ["ordinal", "approval", "cumulative", "choose-1"]
 RULES = [
     "greedy",
-    "unknown",
+    "greedy-no-skip",
+    "greedy-threshold",
+    "greedy-exclusive",
+    "greedy-custom",
     "equalshares",
     "equalshares/add1",
+    "unknown",
 ]
 
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pabulib-checker"
-version = "0.3.2"
+version = "0.3.3"
 description = "A Python library for validating files in the PB (Pabulib) format, ensuring compliance with the standards described at pabulib.org/format."
 authors = [
     { name = "Ignacy Janiszewski", email = "ignacy.janiszewsk@uj.edu.pl" }

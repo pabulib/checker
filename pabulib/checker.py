@@ -23,6 +23,18 @@ class Checker:
         counted_scores (defaultdict): Tracks score counts for each project.
     """
 
+    # Valid rule values for project selection algorithms
+    VALID_RULES = {
+        "greedy",
+        "greedy-no-skip",
+        "greedy-threshold",
+        "greedy-exclusive",
+        "greedy-custom",
+        "equalshares",
+        "equalshares/add1",
+        "unknown",
+    }
+
     def __post_init__(self):
         """
         Initialize results and error tracking structures.
@@ -487,6 +499,28 @@ class Checker:
             details = f"Projects selected but should not: {shouldnt_be_selected}"
             self.add_error(error_type, details)
 
+    def validate_rule(self, rule: str) -> bool:
+        """
+        Validate if the rule is one of the known/supported rules.
+
+        Args:
+            rule (str): The rule specified in the metadata.
+
+        Returns:
+            bool: True if the rule is valid, False otherwise.
+
+        Logs errors/warnings for invalid or unknown rules.
+        """
+        if rule not in self.VALID_RULES:
+            error_type = "unknown rule value"
+            details = (
+                f"The rule '{rule}' is not recognized. "
+                f"Valid rules are: {', '.join(sorted(self.VALID_RULES))}."
+            )
+            self.add_error(error_type, details)
+            return False
+        return True
+
     def verify_greedy_selected(self, budget, projects, results, threshold=0) -> None:
         """
         Validate project selection according to greedy rules, with optional minimum score threshold.
@@ -546,6 +580,79 @@ class Checker:
             details = f"Projects selected below threshold ({threshold}): {selected_below_threshold}"
             self.add_error(error_type, details)
 
+    def verify_greedy_no_skip_selected(
+        self, budget, projects, results, threshold=0
+    ) -> None:
+        """
+        Validate project selection according to greedy-no-skip rules.
+
+        In the greedy-no-skip algorithm, projects are sorted by votes/score (descending),
+        and the algorithm selects projects that fit within the budget. However, unlike
+        standard greedy, the algorithm STOPS immediately when it encounters the first
+        project that does not fit, even if subsequent projects would fit.
+
+        Args:
+            budget (float): Available budget for funding projects.
+            projects (dict): Dictionary of projects with details such as cost and selection status.
+            results (str): Field to use for result comparison (e.g., votes or score).
+            threshold (int): Minimum votes/score a project must have to be considered (default is 0).
+
+        Logs discrepancies where:
+        - Projects that should be selected are not.
+        - Projects that should not be selected are selected.
+        - Projects below the threshold are selected.
+        """
+        selected_projects = dict()
+        greedy_no_skip_winners = dict()
+        selected_below_threshold = set()
+
+        # First pass: collect all selected projects
+        for project_id, project_dict in projects.items():
+            project_score = float(project_dict[results])
+            project_cost = float(project_dict["cost"])
+            cost_printable = utils.make_cost_printable(project_cost)
+            row = [project_id, project_dict[results], cost_printable]
+
+            if int(project_dict["selected"]) == 1:
+                selected_projects[project_id] = row
+                if project_score < threshold:
+                    selected_below_threshold.add(project_id)
+
+        # Second pass: simulate greedy-no-skip to find what should be selected
+        for project_id, project_dict in projects.items():
+            project_score = float(project_dict[results])
+            project_cost = float(project_dict["cost"])
+
+            cost_printable = utils.make_cost_printable(project_cost)
+            row = [project_id, project_dict[results], cost_printable]
+
+            # Only consider projects above threshold for greedy-no-skip selection
+            if project_score >= threshold:
+                if budget >= project_cost:
+                    greedy_no_skip_winners[project_id] = row
+                    budget -= project_cost
+                else:
+                    # Stop immediately - don't consider any more projects
+                    break
+
+        gw_set = set(greedy_no_skip_winners.keys())
+        selected_set = set(selected_projects.keys())
+        should_be_selected = gw_set.difference(selected_set)
+        shouldnt_be_selected = selected_set.difference(gw_set)
+
+        if should_be_selected or shouldnt_be_selected:
+            error_type = "greedy-no-skip rule not followed"
+            details = (
+                f"Projects not selected but should be: {should_be_selected or 'none'}, "
+                f"and selected but shouldn't: {shouldnt_be_selected or 'none'}"
+            )
+            self.add_error(error_type, details)
+
+        if selected_below_threshold:
+            error_type = "threshold violation"
+            details = f"Projects selected below threshold ({threshold}): {selected_below_threshold}"
+            self.add_error(error_type, details)
+
     def verify_selected(self) -> None:
         """
         Verify project selection based on the specified rules.
@@ -572,18 +679,114 @@ class Checker:
             except (ValueError, TypeError):
                 budget = 0.0
 
-            rule = self.meta["rule"]
-            if self.meta["unit"] == "Poznań":
-                self.verify_poznan_selected(budget, projects, self.results_field)
-            elif rule == "greedy":
+            rule = self.meta.get("rule", "")
+
+            # Validate the rule value
+            if not self.validate_rule(rule):
+                return
+
+            # Handle rule-based validation
+            if rule == "unknown":
+                error_type = "rule validation skipped"
+                details = "Rule is 'unknown', so rule compliance cannot be verified."
+                self.add_error(error_type, details, level="warnings")
+                return
+
+            if rule in ("equalshares", "equalshares/add1"):
+                error_type = "rule checker not implemented"
+                details = f"Checking for '{rule}' rule is not yet implemented."
+                self.add_error(error_type, details, level="warnings")
+                return
+
+            if rule == "greedy":
                 self.verify_greedy_selected(
                     budget, projects, self.results_field, self.threshold
                 )
-            else:
-                # TODO add checker for other rules!
-                print(
-                    f"Rule different than `greedy`. Checker for `{rule}` not implemented yet."
+                return
+
+            if rule == "greedy-no-skip":
+                self.verify_greedy_no_skip_selected(
+                    budget, projects, self.results_field, self.threshold
                 )
+                return
+
+            if rule == "greedy-threshold":
+                # Check if min_project_score_threshold field exists
+                if "min_project_score_threshold" not in self.meta:
+                    error_type = "missing threshold field"
+                    details = (
+                        "Rule is 'greedy-threshold' but 'min_project_score_threshold' "
+                        "field is missing in META section."
+                    )
+                    self.add_error(error_type, details)
+                    return
+
+                # Verify using greedy algorithm with threshold
+                self.verify_greedy_selected(
+                    budget, projects, self.results_field, self.threshold
+                )
+                return
+
+            if rule == "greedy-exclusive":
+                # Check using standard greedy, but report as warning if mismatch
+                temp_errors = self.error_counters.copy()
+                temp_file_results = deepcopy(self.file_results)
+
+                self.verify_greedy_selected(
+                    budget, projects, self.results_field, self.threshold
+                )
+
+                # Check if greedy validation found errors
+                if self.file_results.get("errors", {}).get("greedy rule not followed"):
+                    # Remove the greedy error and replace with warning
+                    del self.file_results["errors"]["greedy rule not followed"]
+
+                    error_type = "greedy-exclusive potential mismatch"
+                    details = (
+                        "Standard greedy algorithm would select different projects. "
+                        "This may be correct for 'greedy-exclusive' if conflicting "
+                        "projects are handled by hierarchy rules."
+                    )
+                    self.add_error(error_type, details, level="warnings")
+                return
+
+            if rule == "greedy-custom":
+                # Check if comment field exists
+                if "comment" not in self.meta or not self.meta["comment"]:
+                    error_type = "missing comment for greedy-custom"
+                    details = (
+                        "Rule is 'greedy-custom' but no 'comment' field found in META section. "
+                        "Custom rules should be documented in the comment field."
+                    )
+                    self.add_error(error_type, details, level="warnings")
+
+                # Special case: Poznań uses greedy-custom
+                if self.meta.get("unit") == "Poznań":
+                    self.verify_poznan_selected(budget, projects, self.results_field)
+                    return
+
+                # For other greedy-custom cases, check using standard greedy
+                # but report as warning if mismatch
+                temp_errors = self.error_counters.copy()
+                temp_file_results = deepcopy(self.file_results)
+
+                self.verify_greedy_selected(
+                    budget, projects, self.results_field, self.threshold
+                )
+
+                # Check if greedy validation found errors
+                if self.file_results.get("errors", {}).get("greedy rule not followed"):
+                    # Remove the greedy error and replace with warning
+                    del self.file_results["errors"]["greedy rule not followed"]
+
+                    error_type = "greedy-custom cannot be verified"
+                    details = (
+                        "Standard greedy algorithm would select different projects. "
+                        "This may be correct for 'greedy-custom' due to special logic. "
+                        "Please verify the custom rule implementation manually."
+                    )
+                    self.add_error(error_type, details, level="warnings")
+                return
         else:
             print("There is no selected field!")
 
