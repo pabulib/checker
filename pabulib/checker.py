@@ -738,12 +738,15 @@ class Checker:
 
                 # Check if greedy validation found errors
                 if self.file_results.get("errors", {}).get("greedy rule not followed"):
+                    # Capture the error details before deleting
+                    greedy_error_details = self.file_results["errors"]["greedy rule not followed"][1]
+                    
                     # Remove the greedy error and replace with warning
                     del self.file_results["errors"]["greedy rule not followed"]
 
                     error_type = "greedy-exclusive potential mismatch"
                     details = (
-                        "Standard greedy algorithm would select different projects. "
+                        f"Standard greedy algorithm would select different projects: {greedy_error_details} "
                         "This may be correct for 'greedy-exclusive' if conflicting "
                         "projects are handled by hierarchy rules."
                     )
@@ -776,12 +779,15 @@ class Checker:
 
                 # Check if greedy validation found errors
                 if self.file_results.get("errors", {}).get("greedy rule not followed"):
+                    # Capture the error details before deleting
+                    greedy_error_details = self.file_results["errors"]["greedy rule not followed"][1]
+                    
                     # Remove the greedy error and replace with warning
                     del self.file_results["errors"]["greedy rule not followed"]
 
                     error_type = "greedy-custom cannot be verified"
                     details = (
-                        "Standard greedy algorithm would select different projects. "
+                        f"Standard greedy algorithm would select different projects: {greedy_error_details} "
                         "This may be correct for 'greedy-custom' due to special logic. "
                         "Please verify the custom rule implementation manually."
                     )

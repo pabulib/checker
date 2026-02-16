@@ -380,6 +380,9 @@ voter_id;vote
         warning = test_results["warnings"]["greedy-exclusive potential mismatch"][1]
         self.assertIn("greedy", warning.lower())
         self.assertIn("hierarchy", warning.lower())
+        # Should include project details
+        self.assertIn("2", warning)  # Project 2 should be mentioned as missing
+        self.assertIn("3", warning)  # Project 3 should be mentioned as wrongly selected
 
         print("✓ Test passed: 'greedy-exclusive' produces warning for mismatch")
 
@@ -426,6 +429,9 @@ voter_id;vote
 
         warning = test_results["warnings"]["greedy-custom cannot be verified"][1]
         self.assertIn("custom", warning.lower())
+        # Should include project details
+        self.assertIn("2", warning)  # Project 2 should be mentioned as missing
+        self.assertIn("3", warning)  # Project 3 should be mentioned as wrongly selected
 
         print("✓ Test passed: 'greedy-custom' produces warning for custom logic")
 
