@@ -520,7 +520,7 @@ v3;2,4
         # Process the test data
         results = self.checker.process_files([test_data])
 
-        # File may contain other validation errors; unused budget should be a warning.
+        # File may contain other validation errors; unused budget should be an error for greedy rule.
         self.assertEqual(results["metadata"]["processed"], 1)
 
         # Get the file results
@@ -528,13 +528,13 @@ v3;2,4
             (k for k in results.keys() if k != "metadata" and k != "summary"), None
         )
         file_results = results[file_key]["results"]
-        warnings = file_results["warnings"]
+        errors = file_results["errors"]
 
-        # Should have unused budget warning
-        self.assertIn("unused budget", warnings)
+        # Should have unused budget error (for greedy rule)
+        self.assertIn("unused budget", errors)
 
         # Check which projects are reported
-        unused_errors = warnings["unused budget"]
+        unused_errors = errors["unused budget"]
         error_message = str(list(unused_errors.values())[0])
 
         # Should report projects 2 and 4 (can be funded in greedy order)

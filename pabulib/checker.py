@@ -205,6 +205,13 @@ class Checker:
         # check if unused budget
         budget_remaining = budget_available - budget_spent
 
+        # Get the rule to determine how to handle unused budget
+        rule = self.meta.get("rule", "")
+
+        # Skip unused budget check for greedy-no-skip - unused budget is expected
+        if rule == "greedy-no-skip":
+            return
+
         # Get unselected projects that are above threshold
         unselected_projects = []
         for project_id, project_data in self.projects.items():
@@ -237,13 +244,27 @@ class Checker:
                 # Subtract cost from remaining budget for next iteration
                 current_remaining -= project_cost
 
-        # Add a single warning message for all fundable projects
+        # Add message for fundable projects based on rule type
         if fundable_projects:
             projects_str = ", ".join(map(str, fundable_projects))
+            message = f"projects {projects_str} can be funded but are not selected"
+
+            # Determine level and message based on rule
+            if rule in ("greedy", "greedy-threshold"):
+                # For standard greedy, unused budget is an error
+                level = "errors"
+            elif rule in ("greedy-exclusive", "greedy-custom"):
+                # For other greedy variants, it's a warning with explanation
+                level = "warnings"
+                message += " (note: unused budget can be expected with non-standard greedy variants)"
+            else:
+                # For non-greedy rules, it's a warning
+                level = "warnings"
+
             self.add_error(
                 "unused budget",
-                f"projects {projects_str} can be funded but are not selected",
-                level="warnings",
+                message,
+                level=level,
             )
 
     def check_number_of_votes(self) -> None:
