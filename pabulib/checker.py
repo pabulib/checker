@@ -542,7 +542,9 @@ class Checker:
             return False
         return True
 
-    def verify_greedy_selected(self, budget, projects, results, threshold=0) -> None:
+    def verify_greedy_selected(
+        self, budget, projects, results, threshold=0, rule_name="greedy"
+    ) -> None:
         """
         Validate project selection according to greedy rules, with optional minimum score threshold.
 
@@ -554,6 +556,7 @@ class Checker:
             projects (dict): Dictionary of projects with details such as cost and selection status.
             results (str): Field to use for result comparison (e.g., votes or score).
             threshold (int): Minimum votes/score a project must have to be considered (default is 0).
+            rule_name (str): Name of the rule being validated (e.g., "greedy", "greedy-threshold") for error messages.
 
         Logs discrepancies where:
         - Projects that should be selected are not.
@@ -592,7 +595,7 @@ class Checker:
         #    print(f"Projects selected but should not: {shouldnt_be_selected}")
 
         if should_be_selected or shouldnt_be_selected:
-            error_type = "greedy rule not followed"
+            error_type = f"{rule_name} rule not followed"
             parts = []
             if should_be_selected:
                 parts.append(
@@ -736,7 +739,7 @@ class Checker:
 
             if rule == "greedy":
                 self.verify_greedy_selected(
-                    budget, projects, self.results_field, self.threshold
+                    budget, projects, self.results_field, self.threshold, "greedy"
                 )
                 return
 
@@ -759,7 +762,11 @@ class Checker:
 
                 # Verify using greedy algorithm with threshold
                 self.verify_greedy_selected(
-                    budget, projects, self.results_field, self.threshold
+                    budget,
+                    projects,
+                    self.results_field,
+                    self.threshold,
+                    "greedy-threshold",
                 )
                 return
 
@@ -769,7 +776,7 @@ class Checker:
                 temp_file_results = deepcopy(self.file_results)
 
                 self.verify_greedy_selected(
-                    budget, projects, self.results_field, self.threshold
+                    budget, projects, self.results_field, self.threshold, "greedy"
                 )
 
                 # Check if greedy validation found errors
@@ -812,7 +819,7 @@ class Checker:
                 temp_file_results = deepcopy(self.file_results)
 
                 self.verify_greedy_selected(
-                    budget, projects, self.results_field, self.threshold
+                    budget, projects, self.results_field, self.threshold, "greedy"
                 )
 
                 # Check if greedy validation found errors
