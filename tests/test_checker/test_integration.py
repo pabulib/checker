@@ -96,7 +96,7 @@ class TestCheckerIntegration(unittest.TestCase):
         num_votes;3
         budget;500
         vote_type;approval
-        rule;greedy
+        rule;greedy-threshold
         date_begin;01.01.2024
         date_end;31.01.2024
         min_project_score_threshold;3
@@ -179,7 +179,7 @@ class TestCheckerIntegration(unittest.TestCase):
         num_votes;3
         budget;800
         vote_type;approval
-        rule;greedy
+        rule;greedy-threshold
         date_begin;01.01.2024
         date_end;31.01.2024
         {threshold_line}
@@ -331,6 +331,64 @@ class TestCheckerIntegration(unittest.TestCase):
 
         # Verify that age buckets (40-59, 18-25, 65-99) were accepted without errors
         # This is the key test - ensuring both integer ages (27, 0) and bucket formats work
+
+    def test_greedy_with_threshold_should_use_greedy_threshold_rule(self):
+        """
+        Test that when min_project_score_threshold exists with rule 'greedy',
+        an error is raised indicating it should be 'greedy-threshold' instead.
+        """
+        content = """META
+        key;value
+        description;desc
+        country;Poland
+        unit;TestUnit
+        instance;TestInstance
+        num_projects;2
+        num_votes;3
+        budget;500
+        vote_type;approval
+        rule;greedy
+        date_begin;01.01.2024
+        date_end;31.01.2024
+        min_project_score_threshold;3
+        PROJECTS
+        project_id;cost;votes;name;selected
+        1;500;3;Project1;1
+        2;300;1;Project2;0
+        VOTES
+        voter_id;vote;sex
+        voter1;1;M
+        voter2;1;F
+        voter3;1,2;F
+        """.replace(
+            " ", ""
+        )
+
+        results = self.checker.process_files([content])
+
+        # Should be marked as invalid
+        self.assertEqual(
+            results["metadata"]["invalid"],
+            1,
+            "File with greedy rule and threshold field should be marked invalid.",
+        )
+
+        # Check that the specific error is present
+        file_results = results[1]["results"]
+        self.assertIn(
+            "incorrect rule with threshold",
+            file_results["errors"],
+            "Should detect that greedy-threshold should be used instead of greedy",
+        )
+
+        # Verify error message mentions both greedy and greedy-threshold
+        error_messages = str(file_results["errors"]["incorrect rule with threshold"])
+        self.assertIn("greedy", error_messages.lower(), "Error should mention 'greedy'")
+        self.assertIn(
+            "greedy-threshold",
+            error_messages.lower(),
+            "Error should mention 'greedy-threshold'",
+        )
 
 
 if __name__ == "__main__":

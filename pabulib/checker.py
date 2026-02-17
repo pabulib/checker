@@ -738,6 +738,16 @@ class Checker:
                 return
 
             if rule == "greedy":
+                # Check if min_project_score_threshold exists - if so, should use greedy-threshold
+                if "min_project_score_threshold" in self.meta:
+                    error_type = "incorrect rule with threshold"
+                    details = (
+                        "Rule is 'greedy' but 'min_project_score_threshold' field exists. "
+                        "Should use 'greedy-threshold' instead."
+                    )
+                    self.add_error(error_type, details)
+                    return
+
                 self.verify_greedy_selected(
                     budget, projects, self.results_field, self.threshold, "greedy"
                 )
