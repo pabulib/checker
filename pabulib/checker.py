@@ -170,10 +170,20 @@ class Checker:
                     "project with no cost", f"project: `{project_id}` has no cost!"
                 )
             elif project_cost > budget_available:
-                self.add_error(
-                    "single project exceeded whole budget",
-                    f"project `{project_id}` has exceeded the whole budget! cost: `{project_cost}` vs budget: `{budget_available}`",
-                )
+                # A cost of 999999999 is a sentinel value used to artificially exclude
+                # a project from greedy selection (e.g. when a project was withdrawn
+                # after voting). Treat it as a warning rather than an error.
+                if project_cost == 999999999:
+                    self.add_error(
+                        "single project exceeded whole budget",
+                        f"project `{project_id}` exceeds the whole budget (cost: `{project_cost}` vs budget: `{budget_available}`), but this sentinel value is intentional and is reported as a warning",
+                        level="warnings",
+                    )
+                else:
+                    self.add_error(
+                        "single project exceeded whole budget",
+                        f"project `{project_id}` has exceeded the whole budget! cost: `{project_cost}` vs budget: `{budget_available}`",
+                    )
 
         if budget_spent > budget_available:
             self.add_error(
@@ -850,8 +860,6 @@ class Checker:
                     )
                     self.add_error(error_type, details, level="warnings")
                 return
-        else:
-            print("There is no selected field!")
 
     def check_fields(self) -> None:
         """
@@ -1174,12 +1182,13 @@ class Checker:
         """
         for identifier, file_or_content in enumerate(files, start=1):
             self.file_results = deepcopy(self.error_levels)
+            processing_label = str(identifier)
 
             try:
                 if isinstance(file_or_content, str) and os.path.isfile(file_or_content):
                     # Input is a file path that exists
                     identifier = os.path.splitext(os.path.basename(file_or_content))[0]
-                    print(f"Processing file: `{identifier}`...")
+                    processing_label = identifier
                     with open(file_or_content, "r", encoding="utf-8") as file:
                         file_or_content = file.read()
                 elif isinstance(file_or_content, str) and (
@@ -1222,7 +1231,11 @@ class Checker:
                 self.threshold = int(self.meta.get("min_project_score_threshold", 0))
 
                 self.results[identifier] = dict()
-                self.results[identifier]["webpage_name"] = self.create_webpage_name()
+                webpage_name = self.create_webpage_name()
+                self.results[identifier]["webpage_name"] = webpage_name
+                print(
+                    f"Processing file: `{webpage_name}` (source: `{processing_label}`)..."
+                )
 
                 # results field, votes or score (points)
                 self.results_field = "score" if self.scores_in_projects else "votes"
@@ -1243,7 +1256,7 @@ class Checker:
 
             except Exception as e:
                 # Handle any other errors during processing
-                print(f"❌ ERROR processing file `{identifier}`: {e}")
+                print(f"❌ ERROR processing file `{processing_label}`: {e}")
                 self.results[identifier] = {
                     "results": {
                         "errors": {

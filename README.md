@@ -136,6 +136,7 @@ Critical issues that need to be fixed:
 - **Comma in Float:** `comma in float value at {field}`
 - **Project with No Cost:** `project: {project_id} has no cost!`
 - **Single Project Exceeded Whole Budget:** `project {project_id} has exceeded the whole budget!`
+  - Note: if project cost is exactly `999999999`, this is treated as a warning (artificial sentinel value used to exclude withdrawn projects from greedy selection).
 - **Budget Exceeded:** `Budget exceeded by selected projects`
 - **Fully Funded Flag Discrepancy:** `fully_funded flag different than 1!`
 - **Unused Budget:** `Unused budget could fund project: {project_id}`

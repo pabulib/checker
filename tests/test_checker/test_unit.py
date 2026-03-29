@@ -634,6 +634,82 @@ class TestCheckerUnit(unittest.TestCase):
             "invalid fully_funded value '2'. Valid options are: 1",
         )
 
+    def test_project_cost_exceeds_budget_logs_error(self):
+        """
+        Test that a project whose cost exceeds the budget raises an error
+        (unless the cost is the sentinel value 999999999).
+        """
+        self.checker.file_results = deepcopy(self.checker.error_levels)
+
+        self.checker.meta = {
+            "country": "TestCountry",
+            "unit": "TestUnit",
+            "instance": "TestInstance",
+            "date_begin": "2024",
+            "date_end": "2024",
+            "budget": "100000",
+        }
+        self.checker.projects = {
+            "P1": {"project_id": "P1", "cost": "500000", "selected": "0"},
+        }
+        self.checker.votes = {}
+        self.checker.threshold = 0
+        self.checker.results_field = "votes"
+
+        self.checker.check_budgets()
+
+        errors = self.checker.file_results["errors"]
+        self.assertIsNotNone(
+            errors.get("single project exceeded whole budget"),
+            "Expected error for project exceeding budget not logged.",
+        )
+        warnings = self.checker.file_results["warnings"]
+        self.assertIsNone(
+            warnings.get("single project exceeded whole budget"),
+            "Should not be a warning for a regular over-budget project.",
+        )
+
+    def test_project_cost_sentinel_999999999_logs_warning_not_error(self):
+        """
+        Test that a project with the sentinel cost 999999999 is reported as a
+        warning rather than an error (it was artificially set to exclude the
+        project from greedy selection after it was withdrawn).
+        """
+        self.checker.file_results = deepcopy(self.checker.error_levels)
+
+        self.checker.meta = {
+            "country": "TestCountry",
+            "unit": "TestUnit",
+            "instance": "TestInstance",
+            "date_begin": "2024",
+            "date_end": "2024",
+            "budget": "444207",
+        }
+        self.checker.projects = {
+            "P1": {"project_id": "P1", "cost": "999999999", "selected": "0"},
+        }
+        self.checker.votes = {}
+        self.checker.threshold = 0
+        self.checker.results_field = "votes"
+
+        self.checker.check_budgets()
+
+        errors = self.checker.file_results["errors"]
+        self.assertIsNone(
+            errors.get("single project exceeded whole budget"),
+            "Sentinel cost 999999999 should NOT produce an error.",
+        )
+        warnings = self.checker.file_results["warnings"]
+        self.assertIsNotNone(
+            warnings.get("single project exceeded whole budget"),
+            "Sentinel cost 999999999 should produce a warning.",
+        )
+        self.assertIn(
+            "intentional",
+            warnings["single project exceeded whole budget"][1],
+            "Warning message should explain intentional sentinel behavior.",
+        )
+
     def test_create_webpage_name_with_polish_chars(self):
         """
         Test that `create_webpage_name` handles Polish characters correctly.
