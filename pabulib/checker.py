@@ -874,6 +874,16 @@ class Checker:
         Logs errors for any discrepancies found in metadata, project, or vote fields.
         """
 
+        def normalize_value_for_validation(field, value):
+            """
+            Normalize selected values before generic datatype validation.
+
+            Project coordinates may be stored with commas as decimal separators.
+            """
+            if field in {"latitude", "longitude"} and value not in ("", None):
+                return str(value).replace(",", ".").strip()
+            return value
+
         def validate_fields_and_order(data, fields_order, field_name):
             """
             Validate field presence, order, and unknown fields for a given data structure.
@@ -962,6 +972,7 @@ class Checker:
                 checker = field_rules.get("checker")
                 nullable = field_rules.get("nullable")
                 obligatory = field_rules.get("obligatory", False)
+                value = normalize_value_for_validation(field, value)
 
                 # Check if required field was originally missing from the file
                 missing_marker = f"__{field}_was_missing__"
@@ -1035,6 +1046,7 @@ class Checker:
             validate_fields_values(
                 project_data, flds.PROJECTS_FIELDS_ORDER, "projects", identifier
             )
+        self.check_project_coordinates()
 
         # Check votes fields
         first_vote = next(iter(self.votes.values()), {})
@@ -1049,6 +1061,58 @@ class Checker:
             validate_fields_values(
                 vote_data, flds.VOTES_FIELDS_ORDER, "votes", identifier
             )
+
+    def _parse_coordinate(self, value, minimum: float, maximum: float):
+        """
+        Parse and validate a single coordinate value.
+
+        Returns the parsed float when valid, otherwise None.
+        """
+        normalized = str(value).replace(",", ".").strip()
+        try:
+            parsed = float(normalized)
+        except (TypeError, ValueError):
+            return None
+
+        if minimum <= parsed <= maximum:
+            return parsed
+        return None
+
+    def check_project_coordinates(self) -> None:
+        """
+        Validate project latitude/longitude presence and ranges.
+
+        If one coordinate is present, the other must be present too.
+        Valid ranges are [-90, 90] for latitude and [-180, 180] for longitude.
+        """
+        for project_id, project_data in self.projects.items():
+            lat_val = project_data.get("latitude")
+            lon_val = project_data.get("longitude")
+            has_lat = lat_val not in ("", None)
+            has_lon = lon_val not in ("", None)
+            identifier = f"Project ID `{project_id}`: "
+
+            if has_lat != has_lon:
+                self.add_error(
+                    "invalid projects field value",
+                    f"{identifier}projects fields 'latitude' and 'longitude' must either both be provided or both be empty.",
+                )
+                continue
+
+            if not has_lat:
+                continue
+
+            if self._parse_coordinate(lat_val, -90.0, 90.0) is None:
+                self.add_error(
+                    "invalid projects field value",
+                    f"{identifier}projects field 'latitude' has invalid coordinate value: {lat_val}. Expected a number in range [-90, 90].",
+                )
+
+            if self._parse_coordinate(lon_val, -180.0, 180.0) is None:
+                self.add_error(
+                    "invalid projects field value",
+                    f"{identifier}projects field 'longitude' has invalid coordinate value: {lon_val}. Expected a number in range [-180, 180].",
+                )
 
     def validate_date_range(self, meta) -> None:
         """

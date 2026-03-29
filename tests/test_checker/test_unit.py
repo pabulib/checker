@@ -1008,6 +1008,106 @@ class TestCheckerUnit(unittest.TestCase):
             len(age_errors), 0, f"No age errors expected but got: {age_errors}"
         )
 
+    def test_project_coordinates_require_both_fields(self):
+        """
+        Test that latitude and longitude must be provided together.
+        """
+        self.checker.file_results = deepcopy(self.checker.error_levels)
+        self.checker.meta = {
+            "country": "Poland",
+            "unit": "Test",
+            "instance": "2024",
+            "date_begin": "2024",
+            "date_end": "2024",
+        }
+        self.checker.projects = {
+            "1": {"project_id": "1", "cost": "1000", "latitude": "52.2297"}
+        }
+        self.checker.votes = {}
+
+        self.checker.check_fields()
+
+        errors = self.checker.file_results["errors"].get("invalid projects field value")
+        self.assertIsNotNone(errors, "Missing coordinate pair should be reported.")
+        self.assertTrue(
+            any("must either both be provided or both be empty" in detail for detail in errors.values()),
+            f"Expected coordinate-pair validation error, got: {errors}",
+        )
+
+    def test_project_coordinates_validate_ranges(self):
+        """
+        Test that out-of-range coordinate values are rejected.
+        """
+        self.checker.file_results = deepcopy(self.checker.error_levels)
+        self.checker.meta = {
+            "country": "Poland",
+            "unit": "Test",
+            "instance": "2024",
+            "date_begin": "2024",
+            "date_end": "2024",
+        }
+        self.checker.projects = {
+            "1": {
+                "project_id": "1",
+                "cost": "1000",
+                "latitude": "95",
+                "longitude": "181",
+            }
+        }
+        self.checker.votes = {}
+
+        self.checker.check_fields()
+
+        errors = self.checker.file_results["errors"].get("invalid projects field value")
+        self.assertIsNotNone(errors, "Invalid coordinate ranges should be reported.")
+        self.assertTrue(
+            any("latitude" in detail and "[-90, 90]" in detail for detail in errors.values()),
+            f"Expected latitude range error, got: {errors}",
+        )
+        self.assertTrue(
+            any("longitude" in detail and "[-180, 180]" in detail for detail in errors.values()),
+            f"Expected longitude range error, got: {errors}",
+        )
+
+    def test_project_coordinates_accept_comma_decimal_values(self):
+        """
+        Test that coordinate values with commas are accepted.
+        """
+        self.checker.file_results = deepcopy(self.checker.error_levels)
+        self.checker.meta = {
+            "country": "Poland",
+            "unit": "Test",
+            "instance": "2024",
+            "date_begin": "2024",
+            "date_end": "2024",
+        }
+        self.checker.projects = {
+            "1": {
+                "project_id": "1",
+                "cost": "1000",
+                "latitude": "52,2297",
+                "longitude": "21,0122",
+            }
+        }
+        self.checker.votes = {}
+
+        self.checker.check_fields()
+
+        errors = self.checker.file_results["errors"]
+        coordinate_errors = {
+            key: value
+            for key, value in errors.items()
+            if "projects" in key.lower()
+            and any(
+                coord in str(value).lower() for coord in ("latitude", "longitude")
+            )
+        }
+        self.assertEqual(
+            coordinate_errors,
+            {},
+            f"Comma decimal coordinates should be accepted, got: {coordinate_errors}",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
