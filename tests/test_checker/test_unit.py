@@ -710,6 +710,37 @@ class TestCheckerUnit(unittest.TestCase):
             "Warning message should explain intentional sentinel behavior.",
         )
 
+    def test_project_with_no_votes_logs_warning_not_error(self):
+        """
+        Test that a project with zero votes is reported as a warning rather than
+        an error, because it may have been excluded from voting.
+        """
+        self.checker.file_results = deepcopy(self.checker.error_levels)
+
+        self.checker.projects = {
+            "P1": {"project_id": "P1", "votes": "0"},
+        }
+        self.checker.votes = {}
+
+        self.checker.check_if_correct_votes_number()
+
+        errors = self.checker.file_results["errors"]
+        self.assertIsNone(
+            errors.get("project with no votes"),
+            "Project with no votes should NOT produce an error.",
+        )
+
+        warnings = self.checker.file_results["warnings"]
+        self.assertIsNotNone(
+            warnings.get("project with no votes"),
+            "Project with no votes should produce a warning.",
+        )
+        self.assertIn(
+            "not approved for voting",
+            warnings["project with no votes"][1],
+            "Warning message should explain why zero votes may be valid.",
+        )
+
     def test_create_webpage_name_with_polish_chars(self):
         """
         Test that `create_webpage_name` handles Polish characters correctly.

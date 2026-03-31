@@ -423,7 +423,7 @@ class Checker:
             if int(votes) == 0:
                 error_type = "project with no votes"
                 details = f"It's possible, that this project was not approved for voting! Project: {project_id}"
-                self.add_error(error_type, details)
+                self.add_error(error_type, details, level="warnings")
             counted_votes = self.counted_votes[project_id]
             if not int(project_info.get("votes", 0) or 0) == int(counted_votes or 0):
                 error_type = f"different values in votes"
@@ -498,14 +498,18 @@ class Checker:
         """
         file_selected = dict()
         rule_selected = dict()
+        extra_selected = dict()
         get_rule_projects = True
         for project_id, project_dict in projects.items():
             project_cost = float(project_dict["cost"])
             cost_printable = utils.make_cost_printable(project_cost)
             row = [project_id, project_dict[results], cost_printable]
-            if int(project_dict["selected"]) in (1, 2):
-                # 2 for projects from 80% rule
+            if int(project_dict["selected"]) in (1, 2, 3):
+                # 2 for projects from the 80% rule, 3 for projects
+                # funded from additional reserve funds.
                 file_selected[project_id] = row
+            if int(project_dict["selected"]) == 3:
+                extra_selected[project_id] = row
             if get_rule_projects:
                 if budget >= project_cost:
                     rule_selected[project_id] = row
@@ -516,6 +520,30 @@ class Checker:
                         # 80% of left budget it would be funded
                         rule_selected[project_id] = row
                     get_rule_projects = False
+
+        # Some Poznan files mark additional projects with "3" when reserve
+        # funds are later allocated. The extra budget amount is not stored in
+        # the file, so we can only verify that these projects are the
+        # highest-ranked ones among the projects not already selected by the
+        # base Poznan rule above.
+        if extra_selected:
+            remaining_projects = [
+                (project_id, row)
+                for project_id, row in projects.items()
+                if project_id not in rule_selected
+            ]
+            expected_extra_ids = [
+                project_id
+                for project_id, _ in remaining_projects[: len(extra_selected)]
+            ]
+            for project_id in expected_extra_ids:
+                project_cost = float(projects[project_id]["cost"])
+                cost_printable = utils.make_cost_printable(project_cost)
+                rule_selected[project_id] = [
+                    project_id,
+                    projects[project_id][results],
+                    cost_printable,
+                ]
         rule_selected_set = set(rule_selected.keys())
         file_selected_set = set(file_selected.keys())
         should_be_selected = rule_selected_set.difference(file_selected_set)

@@ -1,5 +1,6 @@
 import unittest
 from copy import deepcopy
+from pathlib import Path
 
 from pabulib.checker import Checker
 
@@ -36,6 +37,7 @@ class TestCheckerIntegration(unittest.TestCase):
         """.replace(
             " ", ""
         )
+        self.project_root = Path(__file__).resolve().parents[2]
 
     def test_integration_valid_file(self):
         """
@@ -218,6 +220,30 @@ class TestCheckerIntegration(unittest.TestCase):
         results = self.checker.process_files([incorrect_with_threshold])
         self.assertEqual(results["metadata"]["invalid"], 1)
         self.assertIn("threshold violation", results[1]["results"]["errors"])
+
+    def test_poznan_selected_value_3_is_treated_as_funded(self):
+        """
+        Poznań's custom rule allows selected=3 for projects funded from
+        additional reserve funds. These archived fixtures should therefore
+        pass the Poznań-specific selection check.
+        """
+        files = [
+            str(
+                self.project_root
+                / "Poland_Poznan_2023_1_-_Nowe_Winogrady_Ponoc_Nowe_Winogrady_Poudnie_Nowe_Winogrady_Wschod_Stare_Winogrady.pb"
+            ),
+            str(
+                self.project_root
+                / "Poland_Poznan_2023_5_-_Grunwald_Ponoc_Grunwald_Poudnie_Stary_Grunwald.pb"
+            ),
+        ]
+
+        results = self.checker.process_files(files)
+
+        for file_path in files:
+            file_key = Path(file_path).stem
+            file_results = results[file_key]["results"]
+            self.assertNotIn("poznan rule not followed", file_results["errors"])
 
     def test_integration_invalid_project_ids_in_votes(self):
         """
