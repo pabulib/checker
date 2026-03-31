@@ -34,6 +34,7 @@ class Checker:
         "equalshares/add1",
         "unknown",
     }
+    SENTINEL_PROJECT_COST = 999999999
 
     def __post_init__(self):
         """
@@ -173,7 +174,7 @@ class Checker:
                 # A cost of 999999999 is a sentinel value used to artificially exclude
                 # a project from greedy selection (e.g. when a project was withdrawn
                 # after voting). Treat it as a warning rather than an error.
-                if project_cost == 999999999:
+                if project_cost == self.SENTINEL_PROJECT_COST:
                     self.add_error(
                         "single project exceeded whole budget",
                         f"project `{project_id}` exceeds the whole budget (cost: `{project_cost}` vs budget: `{budget_available}`), but this sentinel value is intentional and is reported as a warning",
@@ -699,6 +700,10 @@ class Checker:
 
             # Only consider projects above threshold for greedy-no-skip selection
             if project_score >= threshold:
+                if project_cost == self.SENTINEL_PROJECT_COST:
+                    # Sentinel costs mark withdrawn/artificially excluded projects.
+                    # Skip them without stopping greedy-no-skip.
+                    continue
                 if budget >= project_cost:
                     greedy_no_skip_winners[project_id] = row
                     budget -= project_cost

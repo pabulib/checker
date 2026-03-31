@@ -25,6 +25,7 @@ class TestRulesChecker(unittest.TestCase):
         budget=1000,
         include_comment=True,
         include_threshold=False,
+        project_rows=None,
     ):
         """
         Helper method to create test .pb file content.
@@ -36,12 +37,20 @@ class TestRulesChecker(unittest.TestCase):
             budget (int): Budget amount
             include_comment (bool): Whether to include comment field
             include_threshold (bool): Whether to include min_project_score_threshold field
+            project_rows (list): Optional project rows in the form
+                [(project_id, cost, votes, name), ...]
 
         Returns:
             str: Content of the .pb file
         """
         if selected_projects is None:
             selected_projects = [1]
+        if project_rows is None:
+            project_rows = [
+                (1, 300, 10, "Project A"),
+                (2, 400, 6, "Project B"),
+                (3, 200, 5, "Project C"),
+            ]
 
         content = f"""META
 key;value
@@ -49,7 +58,7 @@ description;Test file for rule: {rule}
 country;Poland
 unit;{unit}
 instance;test_instance
-num_projects;3
+num_projects;{len(project_rows)}
 num_votes;12
 budget;{budget}
 vote_type;approval
@@ -64,12 +73,12 @@ date_end;2024
         if include_comment:
             content += f"comment;#1: This is a test for {rule} rule\n"
 
-        content += """PROJECTS
-project_id;cost;votes;name;selected
-1;300;10;Project A;{}
-2;400;6;Project B;{}
-3;200;5;Project C;{}
-VOTES
+        content += "PROJECTS\nproject_id;cost;votes;name;selected\n"
+        for project_id, cost, votes, name in project_rows:
+            selected = 1 if project_id in selected_projects else 0
+            content += f"{project_id};{cost};{votes};{name};{selected}\n"
+
+        content += """VOTES
 voter_id;vote
 1;1,2,3
 2;1,2
@@ -83,11 +92,7 @@ voter_id;vote
 10;1
 11;2
 12;1
-""".format(
-            1 if 1 in selected_projects else 0,
-            1 if 2 in selected_projects else 0,
-            1 if 3 in selected_projects else 0,
-        )
+"""
 
         return content
 
@@ -314,6 +319,29 @@ voter_id;vote
         self.assertIn("3", error)  # Project 3 shouldn't be selected
 
         print("✓ Test passed: 'greedy-no-skip' rule catches incorrect skip")
+
+    def test_rule_greedy_no_skip_skips_sentinel_cost_project(self):
+        """Test that greedy-no-skip ignores sentinel-cost projects instead of stopping."""
+        content = self.create_test_pb_content(
+            rule="greedy-no-skip",
+            selected_projects=[1, 3],
+            budget=500,
+            project_rows=[
+                (1, 300, 10, "Project A"),
+                (2, 999999999, 6, "Withdrawn Project"),
+                (3, 200, 5, "Project C"),
+            ],
+        )
+
+        results = self.checker.process_files([content])
+        test_results = results[1]["results"]
+
+        errors = test_results.get("errors", {})
+        self.assertNotIn("greedy-no-skip rule not followed", errors)
+
+        print(
+            "✓ Test passed: 'greedy-no-skip' skips sentinel-cost projects without stopping"
+        )
 
     def test_rule_greedy_threshold_missing_field(self):
         """Test that 'greedy-threshold' errors when threshold field is missing."""
