@@ -338,7 +338,7 @@ For detailed examples or advanced usage, refer to the comments in the source cod
 - **🔧 Consolidated Unused Budget Error Messages:** Instead of showing separate error messages for each project that could be funded with unused budget, now shows a single consolidated message listing all fundable projects (e.g., "projects 565, 480, 487 can be funded but are not selected")
 
 - **📋 Enhanced Validation Error Messages:** All validation errors now include the list of valid options when validation fails:
-  - `invalid rule 'quota greedy'. Valid options are: greedy, unknown, equalshares, equalshares/add1`
+  - `invalid rule 'quota greedy'. Valid options are: greedy, unknown, equalshares, equalshares-comparison, equalshares/add1, equalshares/add1-comparison`
   - `invalid vote_type 'invalid_type'. Valid options are: ordinal, approval, cumulative, choose-1`
   - `invalid selected value '5'. Valid options are: 0, 1, 2, 3`
   - `invalid sex value 'Invalid'. Valid options are: M, F, O`
@@ -352,4 +352,3 @@ For detailed examples or advanced usage, refer to the comments in the source cod
 
 ### Version 0.1.1
 - Initial release with basic validation functionality
-

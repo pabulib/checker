@@ -421,7 +421,7 @@ class TestNewFunctionality(unittest.TestCase):
         """
         Test that valid voting methods pass validation.
         """
-        valid_vote_types = ["ordinal", "approval", "cumulative", "choose-1"]
+        valid_vote_types = ["ordinal", "approval", "cumulative", "scoring", "choose-1"]
 
         for vote_type in valid_vote_types:
             with self.subTest(vote_type=vote_type):

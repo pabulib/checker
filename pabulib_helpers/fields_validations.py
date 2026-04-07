@@ -1,8 +1,9 @@
 import re
+from datetime import datetime
 
 import pycountry
 
-VOTE_TYPES = ["ordinal", "approval", "cumulative", "choose-1"]
+VOTE_TYPES = ["ordinal", "approval", "cumulative", "scoring", "choose-1"]
 RULES = [
     "greedy",
     "greedy-no-skip",
@@ -10,7 +11,9 @@ RULES = [
     "greedy-exclusive",
     "greedy-custom",
     "equalshares",
+    "equalshares-comparison",
     "equalshares/add1",
+    "equalshares/add1-comparison",
     "unknown",
 ]
 
@@ -20,8 +23,14 @@ def date_format(value):
     Validate that a date string matches either 'YYYY' or 'DD.MM.YYYY' format.
     Returns True if valid, otherwise False.
     """
-    if re.match(r"^\d{4}$", value) or re.match(r"^\d{2}\.\d{2}\.\d{4}$", value):
+    if re.match(r"^\d{4}$", value):
         return True
+    if re.match(r"^\d{2}\.\d{2}\.\d{4}$", value):
+        try:
+            datetime.strptime(value, "%d.%m.%Y")
+            return True
+        except ValueError:
+            return False
     return False
 
 

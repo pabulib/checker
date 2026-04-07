@@ -72,6 +72,7 @@ META_FIELDS_ORDER = {
     "max_points": {"datatype": int},
     "min_sum_points": {"datatype": int},
     "max_sum_points": {"datatype": int},
+    "default_score": {"datatype": int},
     "min_project_cost": {"datatype": int},
     "max_project_cost": {"datatype": int},
     "min_project_score_threshold": {"datatype": int},
@@ -122,7 +123,7 @@ META_FIELDS_ORDER = {
 
 PROJECTS_FIELDS_ORDER = {
     "project_id": {"datatype": str, "obligatory": True},
-    "cost": {"datatype": int, "obligatory": True},
+    "cost": {"datatype": float, "obligatory": True},
     "votes": {"datatype": int},
     "score": {"datatype": int},
     "name": {"datatype": str},

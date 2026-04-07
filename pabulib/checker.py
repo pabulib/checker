@@ -1,9 +1,12 @@
 import math
 import os
 import re
+import unicodedata
 from collections import defaultdict
 from copy import deepcopy
 from dataclasses import dataclass
+from datetime import datetime
+from fractions import Fraction
 from typing import List, Union
 
 from pabulib_helpers import fields as flds
@@ -31,10 +34,13 @@ class Checker:
         "greedy-exclusive",
         "greedy-custom",
         "equalshares",
+        "equalshares-comparison",
         "equalshares/add1",
+        "equalshares/add1-comparison",
         "unknown",
     }
     SENTINEL_PROJECT_COST = 999999999
+    EQUALSHARES_COMPARISON_MODE = "satisfaction"
 
     def __post_init__(self):
         """
@@ -85,6 +91,302 @@ class Checker:
 
         self.error_counters[error_type] += 1
         self.results["summary"][error_type] += 1
+
+    def _split_list_field(self, value) -> List[str]:
+        """Return a comma-separated field as a stripped list without empty items."""
+        if value in (None, ""):
+            return []
+        return [item.strip() for item in str(value).split(",") if item.strip()]
+
+    def _parse_numeric(self, value):
+        """Parse numeric values stored as strings, including comma decimals."""
+        if value in (None, ""):
+            raise ValueError("empty numeric value")
+        return float(str(value).replace(",", ".").strip())
+
+    def _normalize_text_key(self, value: str) -> str:
+        """Normalize labels to detect case/whitespace/diacritic-only differences."""
+        ascii_value = (
+            unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
+        )
+        return re.sub(r"\s+", " ", ascii_value.strip().lower())
+
+    def _normalize_filename_key(self, value: str) -> str:
+        """Normalize file labels before comparing filename conventions."""
+        normalized = self._normalize_text_key(value).replace(" ", "_")
+        return re.sub(r"[^a-z0-9]+", "_", normalized).strip("_")
+
+    def _parse_date_value(self, date_str):
+        """Parse a supported date string to a datetime.date instance."""
+        try:
+            if re.match(r"^\d{4}$", date_str):
+                return datetime.strptime(date_str, "%Y").date()
+            if re.match(r"^\d{2}\.\d{2}\.\d{4}$", date_str):
+                return datetime.strptime(date_str, "%d.%m.%Y").date()
+        except ValueError:
+            return None
+        return None
+
+    def _build_approval_approvers(self):
+        """Map each project to the voters that approve it."""
+        approvers = {project_id: [] for project_id in self.projects}
+        for voter_id, vote_data in self.votes.items():
+            for project_id in self._split_list_field(vote_data.get("vote", "")):
+                if project_id in approvers:
+                    approvers[project_id].append(voter_id)
+        return approvers
+
+    def _break_equalshares_ties(self, choices, cost, approvers):
+        """Break MES ties by lower cost and then higher approval count."""
+        remaining = list(choices)
+        best_cost = min(cost[project_id] for project_id in remaining)
+        remaining = [
+            project_id for project_id in remaining if cost[project_id] == best_cost
+        ]
+        best_approval_count = max(len(approvers[project_id]) for project_id in remaining)
+        return [
+            project_id
+            for project_id in remaining
+            if len(approvers[project_id]) == best_approval_count
+        ]
+
+    def _equal_shares_fixed_budget(self, projects, cost, approvers, total_budget):
+        """Compute approval-based MES winners for a fixed artificial budget."""
+        voters = list(self.votes.keys())
+        if not voters:
+            return []
+
+        voter_budget = {
+            voter_id: Fraction(total_budget, len(voters)) for voter_id in voters
+        }
+        remaining = {
+            project_id: len(approvers[project_id])
+            for project_id in projects
+            if cost[project_id] > 0 and approvers[project_id]
+        }
+        winners = []
+
+        while True:
+            best = []
+            best_eff_vote_count = Fraction(0, 1)
+            remaining_sorted = sorted(
+                remaining, key=lambda project_id: remaining[project_id], reverse=True
+            )
+            for project_id in remaining_sorted:
+                previous_eff_vote_count = remaining[project_id]
+                if previous_eff_vote_count < best_eff_vote_count:
+                    break
+
+                money_behind_now = sum(
+                    voter_budget[voter_id] for voter_id in approvers[project_id]
+                )
+                if money_behind_now < cost[project_id]:
+                    del remaining[project_id]
+                    continue
+
+                sorted_approvers = sorted(
+                    approvers[project_id], key=lambda voter_id: voter_budget[voter_id]
+                )
+                paid_so_far = Fraction(0, 1)
+                denominator = len(sorted_approvers)
+
+                for voter_id in sorted_approvers:
+                    max_payment = Fraction(cost[project_id] - paid_so_far, denominator)
+                    eff_vote_count = Fraction(cost[project_id], 1) / max_payment
+                    if max_payment > voter_budget[voter_id]:
+                        paid_so_far += voter_budget[voter_id]
+                        denominator -= 1
+                    else:
+                        remaining[project_id] = eff_vote_count
+                        if eff_vote_count > best_eff_vote_count:
+                            best_eff_vote_count = eff_vote_count
+                            best = [project_id]
+                        elif eff_vote_count == best_eff_vote_count:
+                            best.append(project_id)
+                        break
+
+            if not best:
+                break
+
+            best = self._break_equalshares_ties(best, cost, approvers)
+            if len(best) > 1:
+                raise ValueError(
+                    f"Equal Shares tie-breaking failed for projects {best}."
+                )
+
+            winner = best[0]
+            winners.append(winner)
+            del remaining[winner]
+
+            max_payment = Fraction(cost[winner], 1) / best_eff_vote_count
+            for voter_id in approvers[winner]:
+                if voter_budget[voter_id] > max_payment:
+                    voter_budget[voter_id] -= max_payment
+                else:
+                    voter_budget[voter_id] = Fraction(0, 1)
+
+        return winners
+
+    def _compute_equalshares_winners(self, add1=False):
+        """Compute winners for equalshares and equalshares/add1."""
+        voters = list(self.votes.keys())
+        if not voters:
+            return []
+
+        projects = list(self.projects.keys())
+        cost = {
+            project_id: int(math.floor(self._parse_numeric(project_data["cost"])))
+            for project_id, project_data in self.projects.items()
+        }
+        approvers = self._build_approval_approvers()
+        total_budget = int(math.floor(self._parse_numeric(self.meta["budget"])))
+
+        winners = self._equal_shares_fixed_budget(
+            projects, cost, approvers, total_budget
+        )
+        if not add1:
+            return winners
+
+        artificial_budget = (total_budget // len(voters)) * len(voters)
+        current_cost = sum(cost[project_id] for project_id in winners)
+
+        while True:
+            next_budget = artificial_budget + len(voters)
+            next_winners = self._equal_shares_fixed_budget(
+                projects, cost, approvers, next_budget
+            )
+            next_cost = sum(cost[project_id] for project_id in next_winners)
+            if next_cost <= total_budget:
+                artificial_budget = next_budget
+                winners = next_winners
+                current_cost = next_cost
+            else:
+                break
+
+        return winners
+
+    def _compute_utilitarian_completion_winners(self, cost, approvers, already_winners=None):
+        """Greedy/utilitarian completion used by the Equal Shares comparison step."""
+        winners = list(already_winners or [])
+        winner_set = set(winners)
+        current_cost = sum(cost[project_id] for project_id in winners)
+        total_budget = int(math.floor(self._parse_numeric(self.meta["budget"])))
+
+        sorted_projects = sorted(
+            self.projects.keys(),
+            key=lambda project_id: len(approvers[project_id]),
+            reverse=True,
+        )
+        for project_id in sorted_projects:
+            if project_id in winner_set:
+                continue
+            if current_cost + cost[project_id] > total_budget:
+                continue
+            winners.append(project_id)
+            winner_set.add(project_id)
+            current_cost += cost[project_id]
+
+        return winners
+
+    def _apply_equalshares_comparison_step(
+        self, winners, cost, approvers, comparison_mode=None
+    ):
+        """Apply the comparison step between Equal Shares and greedy completion."""
+        comparison_mode = comparison_mode or self.EQUALSHARES_COMPARISON_MODE
+        voters = list(self.votes.keys())
+        greedy = self._compute_utilitarian_completion_winners(
+            cost, approvers, already_winners=[]
+        )
+
+        prefers_mes = 0
+        prefers_greedy = 0
+
+        if comparison_mode == "satisfaction":
+            mes_satisfaction = defaultdict(int)
+            greedy_satisfaction = defaultdict(int)
+            for candidate in winners:
+                for voter_id in approvers[candidate]:
+                    mes_satisfaction[voter_id] += 1
+            for candidate in greedy:
+                for voter_id in approvers[candidate]:
+                    greedy_satisfaction[voter_id] += 1
+
+            for voter_id in voters:
+                if mes_satisfaction[voter_id] > greedy_satisfaction[voter_id]:
+                    prefers_mes += 1
+                elif greedy_satisfaction[voter_id] > mes_satisfaction[voter_id]:
+                    prefers_greedy += 1
+        elif comparison_mode == "exclusionRatio":
+            mes_covered = set()
+            greedy_covered = set()
+            for candidate in winners:
+                mes_covered.update(approvers[candidate])
+            for candidate in greedy:
+                greedy_covered.update(approvers[candidate])
+
+            for voter_id in voters:
+                if voter_id in mes_covered and voter_id not in greedy_covered:
+                    prefers_mes += 1
+                elif voter_id in greedy_covered and voter_id not in mes_covered:
+                    prefers_greedy += 1
+        else:
+            raise ValueError(
+                f"Unsupported Equal Shares comparison mode: {comparison_mode}"
+            )
+
+        if prefers_greedy > prefers_mes:
+            return greedy
+        return winners
+
+    def verify_equalshares_selected(self, add1=False, comparison_step=False) -> None:
+        """Validate project selection according to the Method of Equal Shares."""
+        if self.meta.get("vote_type") != "approval":
+            self.add_error(
+                "equalshares unsupported vote_type",
+                f"Rule '{self.meta.get('rule')}' currently supports only approval ballots in the checker.",
+                level="warnings",
+            )
+            return
+
+        cost = {
+            project_id: int(math.floor(self._parse_numeric(project_data["cost"])))
+            for project_id, project_data in self.projects.items()
+        }
+        approvers = self._build_approval_approvers()
+        computed_winners = self._compute_equalshares_winners(add1=add1)
+        if comparison_step:
+            computed_winners = self._apply_equalshares_comparison_step(
+                computed_winners, cost, approvers
+            )
+        computed_winners = set(computed_winners)
+        selected_winners = {
+            project_id
+            for project_id, project_data in self.projects.items()
+            if int(project_data.get("selected", 0) or 0) == 1
+        }
+
+        should_be_selected = computed_winners.difference(selected_winners)
+        shouldnt_be_selected = selected_winners.difference(computed_winners)
+        if should_be_selected or shouldnt_be_selected:
+            error_type = f"{self.meta.get('rule')} rule not followed"
+            parts = []
+            if should_be_selected:
+                parts.append(
+                    f"Projects not selected but should be: {', '.join(sorted(should_be_selected))}"
+                )
+            if shouldnt_be_selected:
+                parts.append(
+                    f"Projects selected but shouldn't be: {', '.join(sorted(shouldnt_be_selected))}"
+                )
+            details = ". ".join(parts)
+            self.add_error(error_type, details)
+
+    def check_parsing_markers(self) -> None:
+        """Promote parser-level structural diagnostics into checker results."""
+        for message in self.meta.get("__parse_errors__", []):
+            self.add_error("file structure error", message)
+        for message in self.meta.get("__parse_warnings__", []):
+            self.add_error("file structure warning", message, level="warnings")
 
     def check_empty_lines(self, lines: List[str]) -> None:
         """
@@ -159,10 +461,15 @@ class Checker:
 
         for project_id, project_data in self.projects.items():
             selected_field = project_data.get("selected")
-            project_cost = int(project_data["cost"])
+            project_cost = int(math.floor(self._parse_numeric(project_data["cost"])))
             all_projects_cost += project_cost
 
             if selected_field and int(selected_field) == 1:
+                if project_cost == self.SENTINEL_PROJECT_COST:
+                    self.add_error(
+                        "selected sentinel-cost project",
+                        f"project `{project_id}` is marked as selected even though its sentinel cost `{project_cost}` indicates it should be excluded from implementation.",
+                    )
                 all_projects.append([project_id, project_cost, project_data["name"]])
                 budget_spent += project_cost
 
@@ -228,7 +535,7 @@ class Checker:
         for project_id, project_data in self.projects.items():
             selected_field = project_data.get("selected")
             if selected_field and int(selected_field) == 0:
-                project_cost = int(project_data["cost"])
+                project_cost = int(math.floor(self._parse_numeric(project_data["cost"])))
                 # Skip if project is below threshold
                 if self.threshold > 0:
                     project_score = float(project_data.get(self.results_field, 0))
@@ -339,7 +646,7 @@ class Checker:
         submitted duplicate project IDs in their vote list.
         """
         for voter, vote_data in self.votes.items():
-            votes = vote_data["vote"].split(",")
+            votes = self._split_list_field(vote_data["vote"])
             if len(votes) > len(set(votes)):
                 error_type = "vote with duplicated projects"
                 details = f"duplicated projects in a vote: Voter ID: `{voter}`, vote: `{votes}`."
@@ -355,9 +662,8 @@ class Checker:
         valid_project_ids = set(self.projects.keys())
 
         for voter, vote_data in self.votes.items():
-            project_ids = vote_data["vote"].split(",")
+            project_ids = self._split_list_field(vote_data["vote"])
             for project_id in project_ids:
-                project_id = project_id.strip()
                 if project_id and project_id not in valid_project_ids:
                     error_type = "vote for non-existent project"
                     details = f"Voter ID: `{voter}` voted for project `{project_id}` which is not listed in PROJECTS section."
@@ -387,7 +693,7 @@ class Checker:
         if max_length or min_length:
             has_vote_with_max_length = False
             for voter, vote_data in self.votes.items():
-                votes = vote_data["vote"].split(",")
+                votes = self._split_list_field(vote_data["vote"])
                 voter_votes = len(votes)
                 if max_length:
                     if voter_votes > int(max_length):
@@ -480,6 +786,291 @@ class Checker:
             self.check_if_correct_votes_number()
         if self.scores_in_projects:
             self.check_if_correct_scores_number()
+
+    def check_vote_type_constraints(self) -> None:
+        """Validate vote-type-specific field requirements and ballot semantics."""
+        vote_type = self.meta.get("vote_type")
+        if not vote_type:
+            return
+
+        requires_points = vote_type in {"cumulative", "scoring"}
+        forbids_points = vote_type in {"approval", "choose-1"}
+        incompatible_meta_fields = {
+            "approval": {"min_points", "max_points", "min_sum_points", "max_sum_points", "default_score"},
+            "choose-1": {"points", "min_points", "max_points", "min_sum_points", "max_sum_points", "default_score"},
+        }
+
+        for field_name in incompatible_meta_fields.get(vote_type, set()):
+            if field_name in self.meta and str(self.meta.get(field_name, "")).strip() != "":
+                self.add_error(
+                    "incompatible meta field for vote_type",
+                    f"Field '{field_name}' should not be used with vote_type '{vote_type}'.",
+                    level="warnings",
+                )
+
+        for voter_id, vote_data in self.votes.items():
+            projects = self._split_list_field(vote_data.get("vote", ""))
+            points_raw = vote_data.get("points", "")
+            has_points = "points" in vote_data and str(points_raw).strip() != ""
+
+            if requires_points and not has_points:
+                self.add_error(
+                    "missing points for vote_type",
+                    f"Voter ID `{voter_id}` is missing the 'points' field required for vote_type '{vote_type}'.",
+                )
+                continue
+
+            if forbids_points and has_points:
+                self.add_error(
+                    "unexpected points for vote_type",
+                    f"Voter ID `{voter_id}` provides 'points' even though vote_type '{vote_type}' does not use them.",
+                )
+
+            if vote_type == "choose-1" and len(projects) != 1:
+                self.add_error(
+                    "invalid choose-1 vote length",
+                    f"Voter ID `{voter_id}` selected {len(projects)} projects, but vote_type 'choose-1' requires exactly one project.",
+                )
+
+            if not has_points:
+                continue
+
+            points = self._split_list_field(points_raw)
+            if len(projects) != len(points):
+                self.add_error(
+                    "vote/points length mismatch",
+                    f"Voter ID `{voter_id}` has {len(projects)} project ids in 'vote' but {len(points)} values in 'points'.",
+                )
+                continue
+
+            parsed_points = []
+            numeric_failure = False
+            for point in points:
+                try:
+                    parsed_points.append(self._parse_numeric(point))
+                except ValueError:
+                    numeric_failure = True
+                    self.add_error(
+                        "invalid points value",
+                        f"Voter ID `{voter_id}` contains a non-numeric points value `{point}`.",
+                    )
+                    break
+            if numeric_failure:
+                continue
+
+            if vote_type == "cumulative" and any(point < 0 for point in parsed_points):
+                self.add_error(
+                    "negative cumulative points",
+                    f"Voter ID `{voter_id}` contains negative points in a cumulative ballot.",
+                )
+
+            min_points = self.meta.get("min_points")
+            max_points = self.meta.get("max_points")
+            if min_points not in (None, ""):
+                min_points_value = self._parse_numeric(min_points)
+                for point in parsed_points:
+                    if point < min_points_value:
+                        self.add_error(
+                            "points below minimum",
+                            f"Voter ID `{voter_id}` contains points below min_points `{min_points}`.",
+                        )
+                        break
+            if max_points not in (None, ""):
+                max_points_value = self._parse_numeric(max_points)
+                for point in parsed_points:
+                    if point > max_points_value:
+                        self.add_error(
+                            "points above maximum",
+                            f"Voter ID `{voter_id}` contains points above max_points `{max_points}`.",
+                        )
+                        break
+
+            points_sum = sum(parsed_points)
+            min_sum_points = self.meta.get("min_sum_points")
+            max_sum_points = self.meta.get("max_sum_points")
+            if min_sum_points not in (None, "") and points_sum < self._parse_numeric(min_sum_points):
+                self.add_error(
+                    "points sum below minimum",
+                    f"Voter ID `{voter_id}` has total points `{points_sum}` below min_sum_points `{min_sum_points}`.",
+                    level="warnings",
+                )
+            if max_sum_points not in (None, "") and points_sum > self._parse_numeric(max_sum_points):
+                self.add_error(
+                    "points sum above maximum",
+                    f"Voter ID `{voter_id}` has total points `{points_sum}` above max_sum_points `{max_sum_points}`.",
+                    level="warnings",
+                )
+
+            if vote_type in {"cumulative", "scoring"}:
+                if any(
+                    parsed_points[idx] < parsed_points[idx + 1]
+                    for idx in range(len(parsed_points) - 1)
+                ):
+                    self.add_error(
+                        "vote order not sorted by points",
+                        f"Voter ID `{voter_id}` lists projects in 'vote' order that is not non-increasing by points.",
+                        level="warnings",
+                    )
+
+    def check_approval_cost_constraints(self) -> None:
+        """Validate min/max summed project costs for approval ballots."""
+        if self.meta.get("vote_type") != "approval":
+            return
+
+        min_sum_cost = self.meta.get("min_sum_cost")
+        max_sum_cost = self.meta.get("max_sum_cost")
+        if min_sum_cost in (None, "") and max_sum_cost in (None, ""):
+            return
+
+        for voter_id, vote_data in self.votes.items():
+            vote_cost = 0.0
+            missing_project = False
+            for project_id in self._split_list_field(vote_data.get("vote", "")):
+                project = self.projects.get(project_id)
+                if not project:
+                    missing_project = True
+                    break
+                try:
+                    vote_cost += self._parse_numeric(project.get("cost", ""))
+                except ValueError:
+                    missing_project = True
+                    break
+            if missing_project:
+                continue
+
+            if min_sum_cost not in (None, "") and vote_cost < self._parse_numeric(min_sum_cost):
+                self.add_error(
+                    "approval vote cost below minimum",
+                    f"Voter ID `{voter_id}` selected projects with total cost `{vote_cost}` below min_sum_cost `{min_sum_cost}`.",
+                    level="warnings",
+                )
+            if max_sum_cost not in (None, "") and vote_cost > self._parse_numeric(max_sum_cost):
+                self.add_error(
+                    "approval vote cost above maximum",
+                    f"Voter ID `{voter_id}` selected projects with total cost `{vote_cost}` above max_sum_cost `{max_sum_cost}`.",
+                    level="warnings",
+                )
+
+    def check_declared_metadata_domains(self) -> None:
+        """Compare declared metadata domains with values observed in the data."""
+        comparisons = [
+            ("categories", "category", self.projects, True),
+            ("neighborhoods", "neighborhood", self.projects, False),
+            ("neighborhoods", "neighborhood", self.votes, False),
+            ("subdistricts", "district", self.projects, False),
+            ("subdistricts", "district", self.votes, False),
+        ]
+
+        for meta_field, data_field, records, is_list in comparisons:
+            declared = self.meta.get(meta_field)
+            if not declared:
+                continue
+            declared_values = set(self._split_list_field(declared))
+            observed_values = set()
+            for row in records.values():
+                raw_value = row.get(data_field, "")
+                if is_list:
+                    observed_values.update(self._split_list_field(raw_value))
+                elif str(raw_value).strip():
+                    observed_values.add(str(raw_value).strip())
+
+            if not observed_values:
+                continue
+
+            missing_declared = sorted(declared_values - observed_values)
+            missing_observed = sorted(observed_values - declared_values)
+
+            if missing_declared:
+                self.add_error(
+                    "unused declared metadata values",
+                    f"META field '{meta_field}' declares values not used in data: {missing_declared}.",
+                    level="warnings",
+                )
+            if missing_observed:
+                self.add_error(
+                    "undeclared metadata values used",
+                    f"Data uses values for '{data_field}' that are not listed in META field '{meta_field}': {missing_observed}.",
+                    level="warnings",
+                )
+
+    def check_label_consistency(self) -> None:
+        """Detect duplicate labels caused only by normalization differences."""
+        inspected_fields = [
+            ("projects", self.projects, "category", True),
+            ("projects", self.projects, "target", True),
+            ("projects", self.projects, "district", False),
+            ("projects", self.projects, "neighborhood", False),
+            ("votes", self.votes, "district", False),
+            ("votes", self.votes, "neighborhood", False),
+        ]
+
+        for scope_name, records, field_name, is_list in inspected_fields:
+            normalized_map = defaultdict(set)
+            for record_id, row in records.items():
+                raw_values = (
+                    self._split_list_field(row.get(field_name, ""))
+                    if is_list
+                    else ([str(row.get(field_name)).strip()] if str(row.get(field_name, "")).strip() else [])
+                )
+                if is_list and len(raw_values) != len(set(raw_values)):
+                    self.add_error(
+                        "duplicate values inside list field",
+                        f"{scope_name.title()} record `{record_id}` contains duplicate values in '{field_name}': {raw_values}.",
+                        level="warnings",
+                    )
+                for raw_value in raw_values:
+                    normalized_map[self._normalize_text_key(raw_value)].add(raw_value)
+
+            for raw_values in normalized_map.values():
+                if len(raw_values) > 1:
+                    self.add_error(
+                        "inconsistent label normalization",
+                        f"{scope_name.title()} field '{field_name}' contains values that differ only by case, spacing, or diacritics: {sorted(raw_values)}.",
+                        level="warnings",
+                    )
+
+    def check_comment_format(self) -> None:
+        """Validate numbered comments and sequential numbering in META.comment."""
+        comment = self.meta.get("comment")
+        if not comment:
+            return
+        markers = re.findall(r"#(\d+):", comment)
+        if not markers:
+            self.add_error(
+                "invalid comment numbering",
+                "META field 'comment' should use numbered comments such as '#1: ...'.",
+            )
+            return
+        expected_markers = [str(index) for index in range(1, len(markers) + 1)]
+        if markers != expected_markers:
+            self.add_error(
+                "non-sequential comment numbering",
+                f"META field 'comment' uses non-sequential numbering: {markers}. Expected {expected_markers}.",
+                level="warnings",
+            )
+
+    def check_dataset_quality_warnings(self) -> None:
+        """Run soft quality checks that do not invalidate the file."""
+        self.check_declared_metadata_domains()
+        self.check_label_consistency()
+        self.check_comment_format()
+
+        coordinates = []
+        for project in self.projects.values():
+            lat_val = project.get("latitude")
+            lon_val = project.get("longitude")
+            if lat_val in ("", None) or lon_val in ("", None):
+                continue
+            parsed_lat = self._parse_coordinate(lat_val, -90.0, 90.0)
+            parsed_lon = self._parse_coordinate(lon_val, -180.0, 180.0)
+            if parsed_lat is not None and parsed_lon is not None:
+                coordinates.append((parsed_lat, parsed_lon))
+        if len(coordinates) > 1 and len(set(coordinates)) == 1:
+            self.add_error(
+                "identical project coordinates",
+                "All projects with coordinates share the same latitude/longitude pair. Please verify whether this is intentional.",
+                level="warnings",
+            )
 
     def verify_poznan_selected(self, budget, projects, results) -> None:
         """
@@ -774,10 +1365,20 @@ class Checker:
                 self.add_error(error_type, details, level="warnings")
                 return
 
-            if rule in ("equalshares", "equalshares/add1"):
-                error_type = "rule checker not implemented"
-                details = f"Checking for '{rule}' rule is not yet implemented."
-                self.add_error(error_type, details, level="warnings")
+            if rule == "equalshares":
+                self.verify_equalshares_selected(add1=False)
+                return
+
+            if rule == "equalshares-comparison":
+                self.verify_equalshares_selected(add1=False, comparison_step=True)
+                return
+
+            if rule == "equalshares/add1":
+                self.verify_equalshares_selected(add1=True)
+                return
+
+            if rule == "equalshares/add1-comparison":
+                self.verify_equalshares_selected(add1=True, comparison_step=True)
                 return
 
             if rule == "greedy":
@@ -933,7 +1534,7 @@ class Checker:
             filtered_data = {
                 k: v
                 for k, v in data.items()
-                if not (k.startswith("__") and k.endswith("_was_missing__"))
+                if not k.startswith("__")
             }
 
             # Skip certain fields that are allowed but not part of the official schema
@@ -994,7 +1595,7 @@ class Checker:
             # Validate each field
             for field, value in data.items():
                 # Skip special marker fields
-                if field.startswith("__") and field.endswith("_was_missing__"):
+                if field.startswith("__"):
                     continue
 
                 if field not in fields_order:
@@ -1054,7 +1655,6 @@ class Checker:
         self.validate_date_range(self.meta)
 
         # Conditional meta validations
-        # If cumulative voting is used, max_sum_points must be provided
         try:
             vote_type = self.meta.get("vote_type")
         except Exception:
@@ -1066,6 +1666,27 @@ class Checker:
                 self.add_error(
                     "missing meta field value",
                     "For vote_type 'cumulative', 'max_sum_points' is required.",
+                )
+        if vote_type == "choose-1":
+            declared_min_length = self.meta.get("min_length")
+            declared_max_length = self.meta.get("max_length")
+            if declared_min_length not in ("", None) and int(declared_min_length) != 1:
+                self.add_error(
+                    "invalid choose-1 meta constraint",
+                    "For vote_type 'choose-1', min_length must be 1.",
+                )
+            if declared_max_length not in ("", None) and int(declared_max_length) != 1:
+                self.add_error(
+                    "invalid choose-1 meta constraint",
+                    "For vote_type 'choose-1', max_length must be 1.",
+                )
+        declared_max_length = self.meta.get("max_length")
+        declared_num_projects = self.meta.get("num_projects")
+        if declared_max_length not in ("", None) and declared_num_projects not in ("", None):
+            if int(declared_max_length) > int(declared_num_projects):
+                self.add_error(
+                    "invalid meta field value",
+                    f"max_length `{declared_max_length}` cannot be higher than num_projects `{declared_num_projects}`.",
                 )
 
         # Check projects fields
@@ -1159,26 +1780,28 @@ class Checker:
         Logs:
             Errors for invalid date formats or a mismatched date range.
         """
+        raw_begin = meta.get("date_begin", "")
+        raw_end = meta.get("date_end", "")
 
-        def parse_date(date_str):
-            # Convert date string to a comparable format.
-            # - YYYY -> "YYYY-01-01"
-            # - DD.MM.YYYY -> "YYYY-MM-DD"
+        parsed_begin = self._parse_date_value(raw_begin) if raw_begin else None
+        parsed_end = self._parse_date_value(raw_end) if raw_end else None
 
-            if re.match(r"^\d{4}$", date_str):  # Year-only format
-                return f"{date_str}-01-01"
-            if re.match(r"^\d{2}\.\d{2}\.\d{4}$", date_str):  # Full date format
-                day, month, year = map(int, date_str.split("."))
-                return f"{year:04d}-{month:02d}-{day:02d}"
-
-        parsed_begin = parse_date(meta["date_begin"])
-        parsed_end = parse_date(meta["date_end"])
+        if raw_begin and parsed_begin is None:
+            self.add_error(
+                "invalid meta field value",
+                f"Invalid date_begin value '{raw_begin}'. Expected 'YYYY' or a real calendar date in 'DD.MM.YYYY' format.",
+            )
+        if raw_end and parsed_end is None:
+            self.add_error(
+                "invalid meta field value",
+                f"Invalid date_end value '{raw_end}'. Expected 'YYYY' or a real calendar date in 'DD.MM.YYYY' format.",
+            )
 
         if parsed_begin and parsed_end:
             if parsed_begin > parsed_end:
                 error_type = "date range missmatch"
                 details = (
-                    f"date end ({parsed_end}) earlier than start ({parsed_begin})!"
+                    f"date end ({parsed_end.isoformat()}) earlier than start ({parsed_begin.isoformat()})!"
                 )
                 self.add_error(error_type, details)
 
@@ -1220,16 +1843,20 @@ class Checker:
 
         Logs errors for any inconsistencies or violations detected during the checks.
         """
+        self.check_parsing_markers()
         self.check_if_commas_in_floats()
         self.check_budgets()
         self.check_number_of_votes()
         self.check_number_of_projects()
         self.check_vote_length()
+        self.check_vote_type_constraints()
+        self.check_approval_cost_constraints()
         self.check_votes_for_invalid_projects()
         # TODO check min/max points
         self.check_votes_and_scores()
         self.verify_selected()
         self.check_fields()
+        self.check_dataset_quality_warnings()
 
     def create_webpage_name(self) -> str:
         """
@@ -1279,13 +1906,16 @@ class Checker:
         """
         for identifier, file_or_content in enumerate(files, start=1):
             self.file_results = deepcopy(self.error_levels)
+            self.error_counters = defaultdict(lambda: 1)
             processing_label = str(identifier)
+            source_filename = None
 
             try:
                 if isinstance(file_or_content, str) and os.path.isfile(file_or_content):
                     # Input is a file path that exists
                     identifier = os.path.splitext(os.path.basename(file_or_content))[0]
                     processing_label = identifier
+                    source_filename = identifier
                     with open(file_or_content, "r", encoding="utf-8") as file:
                         file_or_content = file.read()
                 elif isinstance(file_or_content, str) and (

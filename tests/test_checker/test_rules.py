@@ -117,44 +117,139 @@ voter_id;vote
         print("✓ Test passed: 'unknown' rule produces correct warning")
 
     def test_rule_equalshares(self):
-        """Test that 'equalshares' rule produces a warning about not being implemented."""
-        content = self.create_test_pb_content(rule="equalshares")
+        """Test that 'equalshares' validates a correct MES winner set."""
+        content = """META
+key;value
+description;Equal Shares test
+country;Poland
+unit;City
+instance;2024
+num_projects;3
+num_votes;4
+budget;10
+vote_type;approval
+rule;equalshares
+date_begin;2024
+date_end;2024
+PROJECTS
+project_id;cost;votes;selected
+a;6;3;1
+b;4;2;0
+c;4;2;0
+VOTES
+voter_id;vote
+v1;a,b
+v2;a,b
+v3;a,c
+v4;c
+"""
 
         results = self.checker.process_files([content])
-
-        # Get the results for the test instance (identifier is 1 when processing content)
         test_results = results[1]["results"]
+        errors = test_results.get("errors", {})
+        self.assertNotIn("equalshares rule not followed", errors)
 
-        # Check that a warning was added
-        self.assertIn("warnings", test_results)
-        self.assertIn("rule checker not implemented", test_results["warnings"])
-
-        # Verify warning message
-        warning = test_results["warnings"]["rule checker not implemented"][1]
-        self.assertIn("equalshares", warning.lower())
-        self.assertIn("not yet implemented", warning.lower())
-
-        print("✓ Test passed: 'equalshares' rule produces correct warning")
+        print("✓ Test passed: 'equalshares' rule validates MES winners")
 
     def test_rule_equalshares_add1(self):
-        """Test that 'equalshares/add1' rule produces a warning about not being implemented."""
-        content = self.create_test_pb_content(rule="equalshares/add1")
+        """Test that 'equalshares/add1' validates the Add1 completion result."""
+        content = """META
+key;value
+description;Equal Shares Add1 test
+country;Poland
+unit;City
+instance;2024
+num_projects;3
+num_votes;4
+budget;10
+vote_type;approval
+rule;equalshares/add1
+date_begin;2024
+date_end;2024
+PROJECTS
+project_id;cost;votes;selected
+a;6;3;1
+b;4;2;0
+c;4;2;1
+VOTES
+voter_id;vote
+v1;a,b
+v2;a,b
+v3;a,c
+v4;c
+"""
 
         results = self.checker.process_files([content])
-
-        # Get the results for the test instance (identifier is 1 when processing content)
         test_results = results[1]["results"]
+        errors = test_results.get("errors", {})
+        self.assertNotIn("equalshares/add1 rule not followed", errors)
 
-        # Check that a warning was added
-        self.assertIn("warnings", test_results)
-        self.assertIn("rule checker not implemented", test_results["warnings"])
+        print("✓ Test passed: 'equalshares/add1' rule validates Add1 winners")
 
-        # Verify warning message
-        warning = test_results["warnings"]["rule checker not implemented"][1]
-        self.assertIn("equalshares/add1", warning.lower())
-        self.assertIn("not yet implemented", warning.lower())
+    def test_rule_equalshares_comparison_can_switch_to_greedy(self):
+        """Test that the comparison-step variant can switch to greedy winners."""
+        content = """META
+key;value
+description;Equal Shares comparison test
+country;Poland
+unit;City
+instance;2024
+num_projects;3
+num_votes;3
+budget;2
+vote_type;approval
+rule;equalshares-comparison
+date_begin;2024
+date_end;2024
+PROJECTS
+project_id;cost;votes;selected
+a;1;2;1
+b;1;1;1
+c;1;0;0
+VOTES
+voter_id;vote
+v1;a
+v2;a
+v3;b
+"""
 
-        print("✓ Test passed: 'equalshares/add1' rule produces correct warning")
+        results = self.checker.process_files([content])
+        test_results = results[1]["results"]
+        errors = test_results.get("errors", {})
+        self.assertNotIn("equalshares-comparison rule not followed", errors)
+
+    def test_rule_equalshares_add1_comparison(self):
+        """Test that 'equalshares/add1-comparison' validates a matching selection."""
+        content = """META
+key;value
+description;Equal Shares Add1 comparison test
+country;Poland
+unit;City
+instance;2024
+num_projects;3
+num_votes;4
+budget;10
+vote_type;approval
+rule;equalshares/add1-comparison
+date_begin;2024
+date_end;2024
+PROJECTS
+project_id;cost;votes;selected
+a;6;3;1
+b;4;2;0
+c;4;2;1
+VOTES
+voter_id;vote
+v1;a,b
+v2;a,b
+v3;a,c
+v4;c
+"""
+
+        results = self.checker.process_files([content])
+        test_results = results[1]["results"]
+        errors = test_results.get("errors", {})
+        self.assertNotIn("equalshares/add1-comparison rule not followed", errors)
 
     def test_rule_greedy_valid(self):
         """Test that 'greedy' rule passes when projects are selected correctly."""
