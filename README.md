@@ -38,7 +38,7 @@ This package automatically installs the following dependencies:
 The `Checker` is a utility for processing and validating `.pb` files. It performs a wide range of checks to ensure data consistency across `meta`, `projects`, and `votes` sections. We are very open for any code suggestions / changes.
 
 ### Field Rename Note
-As of April 2026, the `PROJECTS` field `target` has been renamed to `beneficiaries`.
+As of April 2026, the `PROJECTS` field `target` has been renamed to `beneficiaries`, because `target` is ambiguous in this context.
 The checker treats `target` as invalid and reports an explicit migration error asking you to update legacy files to `beneficiaries`.
 
 ---

@@ -292,6 +292,12 @@ v1;1
             ),
             f"Expected explicit target->beneficiaries migration error, got: {errors}",
         )
+        warnings = results[1]["results"].get("warnings", {})
+        wrong_order_warnings = warnings.get("wrong projects fields order", {})
+        self.assertFalse(
+            any("target" in message for message in wrong_order_warnings.values()),
+            f"Legacy target field should not appear in order warnings: {warnings}",
+        )
 
     def test_invalid_calendar_date_is_reported(self):
         content = """META

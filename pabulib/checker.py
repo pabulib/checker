@@ -1562,26 +1562,19 @@ class Checker:
                 details = f"{field_name} contains not known fields: {not_known_fields}."
                 self.add_error(error_type, details)
 
-            # Check if fields in correct order
-
-            # Extract the correct order of fields from fields_order
+            # Check field order using only schema-recognized fields.
+            # Unknown fields are reported separately and should not create
+            # confusing order warnings for fields that are no longer supported.
             fields_order_keys = list(fields_order.keys())
-
-            # Get the current order of keys from the filtered data dictionary
-            data_keys = list(filtered_data.keys())
-
-            # Generate the correct order based on fields_order_keys
+            known_data_keys = [
+                field for field in filtered_data.keys() if field in fields_order_keys
+            ]
             correct_data_order = sorted(
-                data_keys,
-                key=lambda field: (
-                    fields_order_keys.index(field)
-                    if field in fields_order_keys
-                    else float("inf")
-                ),
+                known_data_keys,
+                key=lambda field: fields_order_keys.index(field),
             )
 
-            # Check if the order is correct
-            if data_keys != correct_data_order:
+            if known_data_keys != correct_data_order:
                 # Report a warning with the correct order
                 error_type = f"wrong {field_name} fields order"
                 details = f"correct order should be: {correct_data_order}"
