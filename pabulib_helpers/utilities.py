@@ -26,7 +26,7 @@ def create_points_based_on_vote_length(projects):
 
 
 def count_points_per_project(votes):
-    counted_scores = defaultdict(float)
+    counted_scores = defaultdict(int)
     for _, vote in votes.items():
         # Vote strength, if not defined 1 is default
         projects = [project.strip() for project in vote["vote"].split(",") if project.strip()]
@@ -35,7 +35,10 @@ def count_points_per_project(votes):
         except KeyError:
             points = create_points_based_on_vote_length(projects)
         for project, point in zip(projects, points):
-            counted_scores[project] += float(point)
+            parsed_point = float(point)
+            if parsed_point.is_integer():
+                parsed_point = int(parsed_point)
+            counted_scores[project] += parsed_point
     return counted_scores
 
 

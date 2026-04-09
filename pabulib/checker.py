@@ -768,6 +768,7 @@ class Checker:
             if not self.projects.get(project_id):
                 error_type = f"different values in scores"
                 details = f"project: `{project_id}` file scores (in PROJECTS section): `0` vs counted: {project_votes}"
+                self.add_error(error_type, details)
 
     def check_votes_and_scores(self) -> None:
         """
@@ -997,7 +998,7 @@ class Checker:
         """Detect duplicate labels caused only by normalization differences."""
         inspected_fields = [
             ("projects", self.projects, "category", True),
-            ("projects", self.projects, "target", True),
+            ("projects", self.projects, "beneficiaries", True),
             ("projects", self.projects, "district", False),
             ("projects", self.projects, "neighborhood", False),
             ("votes", self.votes, "district", False),
@@ -1548,6 +1549,14 @@ class Checker:
             not_known_fields = [
                 item for item in filtered_data if item not in fields_order
             ]
+            if field_name == "projects" and "target" in not_known_fields:
+                self.add_error(
+                    "invalid projects field value",
+                    "PROJECTS field 'target' is no longer supported. In April 2026, we renamed the unfortunately named field 'target' to 'beneficiaries'. Please update the header and the corresponding values.",
+                )
+                not_known_fields = [
+                    item for item in not_known_fields if item != "target"
+                ]
             if not_known_fields:
                 error_type = f"not known {field_name} fields"
                 details = f"{field_name} contains not known fields: {not_known_fields}."

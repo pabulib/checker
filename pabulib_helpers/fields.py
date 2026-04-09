@@ -128,7 +128,7 @@ PROJECTS_FIELDS_ORDER = {
     "score": {"datatype": int},
     "name": {"datatype": str},
     "category": {"datatype": list, "checker": validate.if_list, "nullable": True},
-    "target": {"datatype": list, "checker": validate.if_list, "nullable": True},
+    "beneficiaries": {"datatype": list, "checker": validate.if_list, "nullable": True},
     "selected": {
         "datatype": int,
         "checker": lambda x: (

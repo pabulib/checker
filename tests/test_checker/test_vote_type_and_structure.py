@@ -146,6 +146,38 @@ v1;1,2;5
         errors = results[1]["results"]["errors"]
         self.assertIn("vote/points length mismatch", errors)
 
+    def test_scoring_mismatch_reports_integer_counted_value(self):
+        content = """META
+key;value
+description;Scoring counted type
+country;Poland
+unit;Town
+instance;2024
+num_projects;2
+num_votes;1
+budget;100
+vote_type;scoring
+rule;unknown
+date_begin;2024
+date_end;2024
+PROJECTS
+project_id;cost;score
+1;40;4
+2;60;2
+VOTES
+voter_id;vote;points
+v1;1,2;5,2
+"""
+        results = self.checker.process_files([content])
+        errors = results[1]["results"]["errors"]
+        self.assertIn("different values in scores", errors)
+        self.assertTrue(
+            any(
+                "vs counted: 5" in message and "vs counted: 5.0" not in message
+                for message in errors["different values in scores"].values()
+            )
+        )
+
     def test_choose_one_requires_exactly_one_project(self):
         content = """META
 key;value
@@ -198,6 +230,68 @@ v1;1,2
         results = self.checker.process_files([content])
         warnings = results[1]["results"]["warnings"]
         self.assertIn("approval vote cost above maximum", warnings)
+
+    def test_beneficiaries_project_field_is_accepted(self):
+        content = """META
+key;value
+description;Beneficiaries field
+country;Poland
+unit;Town
+instance;2024
+num_projects;1
+num_votes;1
+budget;100
+vote_type;approval
+rule;unknown
+date_begin;2024
+date_end;2024
+PROJECTS
+project_id;cost;votes;beneficiaries
+1;40;1;youth,seniors
+VOTES
+voter_id;vote
+v1;1
+"""
+        results = self.checker.process_files([content])
+        errors = results[1]["results"].get("errors", {})
+        self.assertFalse(
+            any("beneficiaries" in message for messages in errors.values() for message in messages.values()),
+            f"Unexpected beneficiaries field validation error: {errors}",
+        )
+
+    def test_target_project_field_reports_april_2026_rename(self):
+        content = """META
+key;value
+description;Legacy target field
+country;Poland
+unit;Town
+instance;2024
+num_projects;1
+num_votes;1
+budget;100
+vote_type;approval
+rule;unknown
+date_begin;2024
+date_end;2024
+PROJECTS
+project_id;cost;votes;target
+1;40;1;youth,seniors
+VOTES
+voter_id;vote
+v1;1
+"""
+        results = self.checker.process_files([content])
+        errors = results[1]["results"]["errors"]
+        self.assertIn("invalid projects field value", errors)
+        self.assertTrue(
+            any(
+                "April 2026" in message
+                and "'target'" in message
+                and "'beneficiaries'" in message
+                for message in errors["invalid projects field value"].values()
+            ),
+            f"Expected explicit target->beneficiaries migration error, got: {errors}",
+        )
 
     def test_invalid_calendar_date_is_reported(self):
         content = """META
