@@ -115,6 +115,7 @@ class TestNewFunctionality(unittest.TestCase):
             "unit": "TestUnit",
             "instance": "TestInstance",
             "budget": "1000",
+            "rule": "greedy",
             "date_begin": "2024",
             "date_end": "2024",
         }
@@ -151,11 +152,11 @@ class TestNewFunctionality(unittest.TestCase):
         self.checker.check_budgets()
 
         # Should only report project 2 as unused budget (can be funded)
-        warnings = self.checker.file_results["warnings"]
-        self.assertIn("unused budget", warnings)
+        errors = self.checker.file_results["errors"]
+        self.assertIn("unused budget", errors)
 
         # Should only mention project 2, not project 3
-        unused_errors = warnings["unused budget"]
+        unused_errors = errors["unused budget"]
         error_message = str(list(unused_errors.values())[0])
 
         self.assertIn(
@@ -177,6 +178,7 @@ class TestNewFunctionality(unittest.TestCase):
             "unit": "TestUnit",
             "instance": "TestInstance",
             "budget": "1000",
+            "rule": "greedy",
             "date_begin": "2024",
             "date_end": "2024",
         }
@@ -236,6 +238,7 @@ class TestNewFunctionality(unittest.TestCase):
             "unit": "TestUnit",
             "instance": "TestInstance",
             "budget": "1000",
+            "rule": "greedy",
             "date_begin": "2024",
             "date_end": "2024",
         }
@@ -275,10 +278,10 @@ class TestNewFunctionality(unittest.TestCase):
         self.checker.check_budgets()
 
         # Should only report project 2 (higher priority and fits)
-        warnings = self.checker.file_results["warnings"]
-        self.assertIn("unused budget", warnings)
+        errors = self.checker.file_results["errors"]
+        self.assertIn("unused budget", errors)
 
-        unused_errors = warnings["unused budget"]
+        unused_errors = errors["unused budget"]
         error_message = str(list(unused_errors.values())[0])
 
         self.assertIn(
@@ -288,6 +291,54 @@ class TestNewFunctionality(unittest.TestCase):
             "3",
             error_message,
             "Project 3 should NOT be reported (would exceed budget after project 2)",
+        )
+
+    def test_unused_budget_not_reported_for_equalshares_variants(self):
+        """
+        The unused-budget heuristic is greedy-specific and should not run for
+        Equal Shares variants, where leaving fundable projects unselected can be
+        perfectly valid.
+        """
+        self.checker.file_results = deepcopy(self.checker.error_levels)
+
+        self.checker.meta = {
+            "country": "Netherlands",
+            "unit": "Assen",
+            "instance": "2024",
+            "budget": "100",
+            "rule": "equalshares/add1",
+            "date_begin": "2024",
+            "date_end": "2024",
+        }
+
+        self.checker.projects = {
+            1: {
+                "project_id": 1,
+                "cost": 70,
+                "selected": "1",
+                "votes": 20,
+                "name": "Selected Project",
+            },
+            2: {
+                "project_id": 2,
+                "cost": 20,
+                "selected": "0",
+                "votes": 15,
+                "name": "Fundable But Validly Unselected Under MES",
+            },
+        }
+
+        self.checker.votes = {}
+        self.checker.results_field = "votes"
+        self.checker.threshold = 0
+
+        self.checker.check_budgets()
+
+        warnings = self.checker.file_results["warnings"]
+        self.assertNotIn(
+            "unused budget",
+            warnings,
+            "unused budget should not be reported for equalshares/add1",
         )
 
     def test_empty_lines_warning_system(self):

@@ -526,6 +526,20 @@ class Checker:
         # Get the rule to determine how to handle unused budget
         rule = self.meta.get("rule", "")
 
+        # This check simulates a greedy fill of the remaining budget based on
+        # vote totals. That is meaningful only for greedy-style rules.
+        # For Equal Shares variants, leftover budget does not imply that an
+        # unselected project "should" be funded, so the warning would be
+        # misleading.
+        if rule not in (
+            "greedy",
+            "greedy-threshold",
+            "greedy-exclusive",
+            "greedy-custom",
+            "greedy-no-skip",
+        ):
+            return
+
         # Skip unused budget check for greedy-no-skip - unused budget is expected
         if rule == "greedy-no-skip":
             return
