@@ -1,4 +1,8 @@
+import sys
 import unittest
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from pabulib.checker import Checker
 
@@ -203,6 +207,34 @@ v1;1,2
         results = self.checker.process_files([content])
         errors = results[1]["results"]["errors"]
         self.assertIn("invalid choose-1 vote length", errors)
+
+    def test_max_length_one_suggests_choose_one_vote_type(self):
+        content = """META
+key;value
+description;Approval but actually choose one
+country;Poland
+unit;Town
+instance;2024
+num_projects;2
+num_votes;2
+budget;100
+vote_type;approval
+rule;unknown
+date_begin;2024
+date_end;2024
+max_length;1
+PROJECTS
+project_id;cost;votes
+1;40;2
+2;60;0
+VOTES
+voter_id;vote
+v1;1
+v2;1
+"""
+        results = self.checker.process_files([content])
+        warnings = results[1]["results"]["warnings"]
+        self.assertIn("choose-1 vote_type suggested", warnings)
 
     def test_approval_respects_max_sum_cost(self):
         content = """META

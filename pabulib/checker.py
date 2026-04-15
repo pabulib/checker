@@ -1696,6 +1696,14 @@ class Checker:
                     "invalid choose-1 meta constraint",
                     "For vote_type 'choose-1', max_length must be 1.",
                 )
+        elif self.meta.get("max_length") not in ("", None):
+            declared_max_length = int(self.meta.get("max_length"))
+            if declared_max_length == 1:
+                self.add_error(
+                    "choose-1 vote_type suggested",
+                    "max_length is 1 but vote_type is not 'choose-1'. This looks like a special case of approval voting and may be better represented as vote_type 'choose-1'.",
+                    level="warnings",
+                )
         declared_max_length = self.meta.get("max_length")
         declared_num_projects = self.meta.get("num_projects")
         if declared_max_length not in ("", None) and declared_num_projects not in ("", None):
