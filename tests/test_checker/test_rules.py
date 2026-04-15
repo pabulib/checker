@@ -730,7 +730,7 @@ voter_id;vote
         print("✓ Test passed: greedy respects threshold parameter")
 
     def test_rule_no_selected_field(self):
-        """Test that when there's no 'selected' field, validation is skipped."""
+        """Test that missing 'selected' produces a warning and skips rule validation."""
         # Create content without selected field in projects
         content = f"""META
 key;value
@@ -770,12 +770,17 @@ voter_id;vote
         results = self.checker.process_files([content])
         test_results = results[1]["results"]
 
-        # Should have no rule validation errors since there's no selected field
+        # Should have no rule validation errors since rule validation is skipped
         errors = test_results.get("errors", {})
         self.assertNotIn("greedy rule not followed", errors)
 
-        # The checker should just skip validation when no selected field exists
-        print("✓ Test passed: no selected field - validation skipped")
+        warnings = test_results.get("warnings", {})
+        self.assertIn("missing selected field in projects", warnings)
+        warning = warnings["missing selected field in projects"][1]
+        self.assertIn("not formally obligatory", warning)
+        self.assertIn("super important", warning)
+
+        print("✓ Test passed: no selected field - warning emitted and validation skipped")
 
 
 if __name__ == "__main__":
