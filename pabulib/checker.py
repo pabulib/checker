@@ -706,9 +706,11 @@ class Checker:
 
         if max_length or min_length:
             has_vote_with_max_length = False
+            total_vote_length = 0
             for voter, vote_data in self.votes.items():
                 votes = self._split_list_field(vote_data["vote"])
                 voter_votes = len(votes)
+                total_vote_length += voter_votes
                 if max_length:
                     if voter_votes > int(max_length):
                         error_type = "vote length exceeded"
@@ -726,6 +728,19 @@ class Checker:
             if max_length and not has_vote_with_max_length:
                 error_type = "no_max_length_used"
                 details = f"No voter used the full max vote length of `{max_length}`"
+                self.add_error(error_type, details, level="warnings")
+
+            if (
+                max_length
+                and self.votes
+                and int(max_length) != 1
+                and total_vote_length == len(self.votes)
+            ):
+                error_type = "average vote length equals one"
+                details = (
+                    f"Average observed vote length is exactly `1` while max_length is `{max_length}`. "
+                    "This may indicate that max_length in META is incorrect or that the effective ballot format was more restrictive."
+                )
                 self.add_error(error_type, details, level="warnings")
 
     def check_if_correct_votes_number(self) -> None:

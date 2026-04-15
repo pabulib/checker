@@ -236,6 +236,35 @@ v2;1
         warnings = results[1]["results"]["warnings"]
         self.assertIn("choose-1 vote_type suggested", warnings)
 
+    def test_average_vote_length_one_warns_when_max_length_differs(self):
+        content = """META
+key;value
+description;Approval with suspicious max length
+country;Poland
+unit;Town
+instance;2024
+num_projects;3
+num_votes;2
+budget;100
+vote_type;approval
+rule;unknown
+date_begin;2024
+date_end;2024
+max_length;2
+PROJECTS
+project_id;cost;votes
+1;40;1
+2;30;1
+3;20;0
+VOTES
+voter_id;vote
+v1;1
+v2;2
+"""
+        results = self.checker.process_files([content])
+        warnings = results[1]["results"]["warnings"]
+        self.assertIn("average vote length equals one", warnings)
+
     def test_approval_respects_max_sum_cost(self):
         content = """META
 key;value
