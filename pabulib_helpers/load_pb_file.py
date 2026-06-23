@@ -53,6 +53,14 @@ def parse_pb_lines(lines: List[str]) -> Tuple[Dict, Dict, Dict, bool, bool]:
     section_sequence = []
     seen_sections = set()
 
+    def record_surrounding_whitespace(raw_value: str, location: str) -> None:
+        """Report cell-boundary whitespace before normalizing parsed values."""
+        value = str(raw_value)
+        if value and value != value.strip():
+            parse_errors.append(
+                f"{location} contains leading or trailing whitespace: {value!r}."
+            )
+
     # Use StringIO to simulate file-like behavior for csv.reader
     rows = list(csv.reader(StringIO("\n".join(lines)), delimiter=";"))
     row_index = 0
@@ -68,6 +76,9 @@ def parse_pb_lines(lines: List[str]) -> Tuple[Dict, Dict, Dict, bool, bool]:
         normalized_first_cell = first_cell.lower()
 
         if normalized_first_cell in ["meta", "projects", "votes"]:
+            record_surrounding_whitespace(
+                row[0], f"Section marker '{first_cell}'"
+            )
             section = normalized_first_cell
             section_sequence.append(section)
 
@@ -82,6 +93,10 @@ def parse_pb_lines(lines: List[str]) -> Tuple[Dict, Dict, Dict, bool, bool]:
                     continue
 
                 next_row = rows[row_index]
+                for column_index, cell in enumerate(next_row, start=1):
+                    record_surrounding_whitespace(
+                        cell, f"META header column {column_index}"
+                    )
                 normalized_header = [cell.strip().lower() for cell in next_row]
                 if len(normalized_header) >= 2 and normalized_header[0] == "key" and normalized_header[1] == "value":
                     row_index += 1
@@ -98,6 +113,10 @@ def parse_pb_lines(lines: List[str]) -> Tuple[Dict, Dict, Dict, bool, bool]:
 
             raw_header = rows[row_index]
             row_index += 1
+            for column_index, cell in enumerate(raw_header, start=1):
+                record_surrounding_whitespace(
+                    cell, f"{section.upper()} header column {column_index}"
+                )
             header = [cell.strip() for cell in raw_header]
             normalized_header = [cell.lower() for cell in header]
 
@@ -129,12 +148,15 @@ def parse_pb_lines(lines: List[str]) -> Tuple[Dict, Dict, Dict, bool, bool]:
 
         if section == "meta":
             key = first_cell
+            record_surrounding_whitespace(row[0], "META key")
             if not key:
                 parse_errors.append("META contains an empty key.")
                 continue
             if key in meta:
                 parse_errors.append(f"Duplicated META key '{key}'.")
-            original_value = row[1].strip() if len(row) > 1 else ""
+            raw_value = row[1] if len(row) > 1 else ""
+            record_surrounding_whitespace(raw_value, f"META value for key '{key}'")
+            original_value = raw_value.strip()
             value = original_value if original_value else ""
             meta[key] = value
             original_meta[key] = original_value
@@ -157,6 +179,7 @@ def parse_pb_lines(lines: List[str]) -> Tuple[Dict, Dict, Dict, bool, bool]:
 
         if section == "projects":
             project_id = first_cell
+            record_surrounding_whitespace(row[0], "PROJECTS project_id")
             if not project_id:
                 parse_errors.append("PROJECTS contains an empty project_id.")
                 continue
@@ -166,7 +189,12 @@ def parse_pb_lines(lines: List[str]) -> Tuple[Dict, Dict, Dict, bool, bool]:
             projects[project_id] = {"project_id": project_id}
             original_projects[project_id] = {"project_id": project_id}
             for it, key in enumerate(header[1:]):
-                original_value = row[it + 1].strip() if len(row) > it + 1 else ""
+                raw_value = row[it + 1] if len(row) > it + 1 else ""
+                record_surrounding_whitespace(
+                    raw_value,
+                    f"PROJECTS row '{project_id}' field '{key.strip()}'",
+                )
+                original_value = raw_value.strip()
                 value = original_value if original_value else ""
                 projects[project_id][key.strip()] = value
                 original_projects[project_id][key.strip()] = original_value
@@ -174,6 +202,7 @@ def parse_pb_lines(lines: List[str]) -> Tuple[Dict, Dict, Dict, bool, bool]:
 
         if section == "votes":
             voter_id = first_cell
+            record_surrounding_whitespace(row[0], "VOTES voter_id")
             if not voter_id:
                 parse_errors.append("VOTES contains an empty voter_id.")
                 continue
@@ -183,7 +212,12 @@ def parse_pb_lines(lines: List[str]) -> Tuple[Dict, Dict, Dict, bool, bool]:
             votes[voter_id] = {"voter_id": voter_id}
             original_votes[voter_id] = {"voter_id": voter_id}
             for it, key in enumerate(header[1:]):
-                original_value = row[it + 1].strip() if len(row) > it + 1 else ""
+                raw_value = row[it + 1] if len(row) > it + 1 else ""
+                record_surrounding_whitespace(
+                    raw_value,
+                    f"VOTES row '{voter_id}' field '{key.strip()}'",
+                )
+                original_value = raw_value.strip()
                 value = original_value if original_value else ""
                 votes[voter_id][key.strip()] = value
                 original_votes[voter_id][key.strip()] = original_value

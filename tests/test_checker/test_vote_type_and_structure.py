@@ -97,6 +97,129 @@ v1;1,2;5,3
             f"Unexpected vote_type validation error: {invalid_meta_errors}",
         )
 
+    def test_whitespace_around_vote_separator_is_rejected(self):
+        content = """META
+key;value
+description;Whitespace in vote list
+country;Poland
+unit;Town
+instance;2024
+num_projects;2
+num_votes;1
+budget;100
+vote_type;approval
+rule;unknown
+date_begin;2024
+date_end;2024
+PROJECTS
+project_id;cost;votes
+1;40;1
+2;60;1
+VOTES
+voter_id;vote
+v1;1, 2
+"""
+        results = self.checker.process_files([content])
+        errors = results[1]["results"]["errors"]
+
+        self.assertIn("whitespace around vote separator", errors)
+        self.assertIn(
+            "Project IDs must be separated with commas and no surrounding whitespace.",
+            errors["whitespace around vote separator"][1],
+        )
+
+    def test_vote_list_without_separator_whitespace_is_accepted(self):
+        content = """META
+key;value
+description;Canonical vote list
+country;Poland
+unit;Town
+instance;2024
+num_projects;2
+num_votes;1
+budget;100
+vote_type;approval
+rule;unknown
+date_begin;2024
+date_end;2024
+PROJECTS
+project_id;cost;votes
+1;40;1
+2;60;1
+VOTES
+voter_id;vote
+v1;1,2
+"""
+        results = self.checker.process_files([content])
+        errors = results[1]["results"]["errors"]
+
+        self.assertNotIn("whitespace around vote separator", errors)
+
+    def test_whitespace_around_other_list_separators_is_rejected(self):
+        content = """META
+key;value
+description;Whitespace in list fields
+country;Poland
+unit;Town
+instance;2024
+num_projects;2
+num_votes;1
+budget;100
+vote_type;cumulative
+rule;unknown
+date_begin;2024
+date_end;2024
+max_sum_points;10
+categories;Culture, Sport
+PROJECTS
+project_id;cost;votes;score;category
+1;40;1;5;Culture, Sport
+2;60;1;3;Sport
+VOTES
+voter_id;vote;points
+v1;1,2;5, 3
+"""
+        results = self.checker.process_files([content])
+        errors = results[1]["results"]["errors"]
+
+        self.assertIn("whitespace around list separator", errors)
+        self.assertEqual(len(errors["whitespace around list separator"]), 3)
+        details = " ".join(errors["whitespace around list separator"].values())
+        self.assertIn("field `categories`", details)
+        self.assertIn("field `category`", details)
+        self.assertIn("field `points`", details)
+
+    def test_leading_and_trailing_cell_whitespace_is_rejected_before_normalization(self):
+        content = """META
+key;value
+description; Description with leading whitespace
+country;Poland
+unit;Town
+instance;2024
+num_projects;1
+num_votes;1
+budget;100
+vote_type;approval
+rule;unknown
+date_begin;2024
+date_end;2024
+PROJECTS
+project_id;cost ;votes
+ 1;100;1
+VOTES
+voter_id;vote
+v1 ;1
+"""
+        results = self.checker.process_files([content])
+        errors = results[1]["results"]["errors"]
+
+        self.assertIn("file structure error", errors)
+        details = " ".join(errors["file structure error"].values())
+        self.assertIn("META value for key 'description'", details)
+        self.assertIn("PROJECTS header column 2", details)
+        self.assertIn("PROJECTS project_id", details)
+        self.assertIn("VOTES voter_id", details)
+
     def test_cumulative_requires_points_for_each_vote(self):
         content = """META
 key;value

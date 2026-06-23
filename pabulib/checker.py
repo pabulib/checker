@@ -41,6 +41,19 @@ class Checker:
     }
     SENTINEL_PROJECT_COST = 999999999
     EQUALSHARES_COMPARISON_MODE = "satisfaction"
+    COMMA_SEPARATED_FIELDS = {
+        "meta": {
+            "categories",
+            "neighborhoods",
+            "subdistricts",
+            "budget_per_category",
+            "budget_per_neighborhood",
+            "min_sum_cost_per_category",
+            "max_sum_cost_per_category",
+        },
+        "projects": {"category", "beneficiaries"},
+        "votes": {"vote", "points"},
+    }
 
     def __post_init__(self):
         """
@@ -665,6 +678,54 @@ class Checker:
                 error_type = "vote with duplicated projects"
                 details = f"duplicated projects in a vote: Voter ID: `{voter}`, vote: `{votes}`."
                 self.add_error(error_type, details)
+
+    def check_vote_list_whitespace(self) -> None:
+        """Reject whitespace around commas in comma-separated fields.
+
+        List items must be comma-separated without surrounding whitespace.
+        Some consumers, including Pabutools, treat that whitespace as part of
+        the value.
+        """
+        sections = [
+            ("META", {"META": self.meta}, self.COMMA_SEPARATED_FIELDS["meta"]),
+            ("PROJECTS", self.projects, self.COMMA_SEPARATED_FIELDS["projects"]),
+            ("VOTES", self.votes, self.COMMA_SEPARATED_FIELDS["votes"]),
+        ]
+
+        for section_name, records, field_names in sections:
+            for record_id, record in records.items():
+                for field_name in field_names:
+                    if field_name not in record:
+                        continue
+                    raw_value = str(record.get(field_name, ""))
+                    if not raw_value or "," not in raw_value:
+                        continue
+                    items = raw_value.split(",")
+                    if not any(item != item.strip() for item in items):
+                        continue
+
+                    if section_name == "VOTES" and field_name == "vote":
+                        self.add_error(
+                            "whitespace around vote separator",
+                            (
+                                f"Voter ID: `{record_id}`, vote: `{raw_value}`. "
+                                "Project IDs must be separated with commas and no surrounding whitespace."
+                            ),
+                        )
+                        continue
+
+                    record_label = (
+                        "META"
+                        if section_name == "META"
+                        else f"{section_name} record `{record_id}`"
+                    )
+                    self.add_error(
+                        "whitespace around list separator",
+                        (
+                            f"{record_label}, field `{field_name}`: `{raw_value}`. "
+                            "List items must be separated with commas and no surrounding whitespace."
+                        ),
+                    )
 
     def check_votes_for_invalid_projects(self) -> None:
         """
@@ -1895,6 +1956,7 @@ class Checker:
         self.check_budgets()
         self.check_number_of_votes()
         self.check_number_of_projects()
+        self.check_vote_list_whitespace()
         self.check_vote_length()
         self.check_vote_type_constraints()
         self.check_approval_cost_constraints()

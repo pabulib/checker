@@ -147,6 +147,8 @@ Critical issues that need to be fixed:
 - **Different Number of Votes:** `votes number in META: {meta_votes} vs counted from file: {file_votes}`
 - **Different Number of Projects:** `projects number in META: {meta_projects} vs counted from file: {file_projects}`
 - **Vote with Duplicated Projects:** `duplicated projects in a vote: {voter_id}`
+- **Whitespace Around List Separators:** Comma-separated fields in META, PROJECTS, and VOTES must use `a,b,c`, not `a, b, c`, because some PB-format consumers treat the whitespace as part of the value. Vote lists retain the dedicated `whitespace around vote separator` error.
+- **Leading or Trailing Cell Whitespace:** Structural values, headers, IDs, and data cells cannot contain whitespace that would be silently removed while parsing.
 - **Vote Length Exceeded:** `Voter ID: {voter_id}, max vote length exceeded`
 - **Vote Length Too Short:** `Voter ID: {voter_id}, min vote length not met`
 - **Different Values in Votes:** `file votes vs counted votes mismatch for project: {project_id}`
