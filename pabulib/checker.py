@@ -1782,7 +1782,11 @@ class Checker:
                 )
         elif self.meta.get("max_length") not in ("", None):
             declared_max_length = int(self.meta.get("max_length"))
-            if declared_max_length == 1:
+            declared_num_projects = self.meta.get("num_projects")
+            if declared_max_length == 1 and (
+                declared_num_projects in ("", None)
+                or int(declared_num_projects) > 1
+            ):
                 self.add_error(
                     "choose-1 vote_type suggested",
                     "max_length is 1 but vote_type is not 'choose-1'. This looks like a special case of approval voting and may be better represented as vote_type 'choose-1'.",

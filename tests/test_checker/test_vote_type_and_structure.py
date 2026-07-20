@@ -359,6 +359,33 @@ v2;1
         warnings = results[1]["results"]["warnings"]
         self.assertIn("choose-1 vote_type suggested", warnings)
 
+    def test_max_length_one_does_not_suggest_choose_one_for_single_project(self):
+        content = """META
+key;value
+description;Approval with one available project
+country;Poland
+unit;Town
+instance;2024
+num_projects;1
+num_votes;2
+budget;100
+vote_type;approval
+rule;unknown
+date_begin;2024
+date_end;2024
+max_length;1
+PROJECTS
+project_id;cost;votes
+1;40;2
+VOTES
+voter_id;vote
+v1;1
+v2;1
+"""
+        results = self.checker.process_files([content])
+        warnings = results[1]["results"]["warnings"]
+        self.assertNotIn("choose-1 vote_type suggested", warnings)
+
     def test_average_vote_length_one_warns_when_max_length_differs(self):
         content = """META
 key;value
